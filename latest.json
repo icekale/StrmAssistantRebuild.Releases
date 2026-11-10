@@ -2,11 +2,11 @@
   "PluginId": "97d51f81-cd66-4e74-a2f3-e0c3687cf738",
   "AssemblyName": "StrmAssistantRebuild",
   "FileName": "StrmAssistantRebuild.dll",
-  "Version": "0.1.145.0",
+  "Version": "0.1.146.0",
   "TargetFramework": ".NETCoreApp,Version=v6.0",
   "Architecture": "AnyCPU",
   "Channel": "stable",
-  "Sha256": "9d7d12d946d6c3126de3935d6aadde4810c602593b0af84c60a0ab4d153f47fe",
-  "Size": 6474752,
+  "Sha256": "fd3551fd3c2aae3792c26ca4d23b76c0dbbdca1d4104d5ac172256552d320917",
+  "Size": 6488576,
   "DownloadUrl": "https://raw.githubusercontent.com/icekale/StrmAssistantRebuild.Releases/main/StrmAssistantRebuild.dll"
 }

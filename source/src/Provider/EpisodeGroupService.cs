@@ -123,26 +123,31 @@ public sealed class EpisodeGroupService
         }
     }
 
-    public static bool HasGroupSource(Series? series, MetadataEnhanceOptions settings) => series != null &&
-        (!string.IsNullOrWhiteSpace(series.GetProviderId(ProviderKey)) || settings.LocalEpisodeGroup && !string.IsNullOrWhiteSpace(series.Path) &&
-        Path.IsPathRooted(series.Path) && new[] { "episodegroup.json", "episode-group.json" }.Any(name => File.Exists(Path.Combine(series.Path, name))));
+    public static bool HasGroupSource(Series? series, MetadataEnhanceOptions settings) =>
+        series != null && HasGroupSource(series.Path, series.GetProviderId(ProviderKey), settings);
+    /// <summary>Same rule from a series path and group reference (e.g. a SeriesInfo lookup).</summary>
+    public static bool HasGroupSource(string? seriesPath, string? reference, MetadataEnhanceOptions settings) =>
+        !string.IsNullOrWhiteSpace(reference) || settings.LocalEpisodeGroup && !string.IsNullOrWhiteSpace(seriesPath) &&
+        Path.IsPathRooted(seriesPath) && new[] { "episodegroup.json", "episode-group.json" }.Any(name => File.Exists(Path.Combine(seriesPath, name)));
 
-    public async Task<EpisodeGroupDocument?> LoadAsync(Series series, CancellationToken token)
+    public Task<EpisodeGroupDocument?> LoadAsync(Series series, CancellationToken token) =>
+        LoadAsync(series.Path, series.GetProviderId(ProviderKey), token);
+
+    public async Task<EpisodeGroupDocument?> LoadAsync(string? seriesPath, string? reference, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
         var settings = options();
-        if (settings.LocalEpisodeGroup && !string.IsNullOrWhiteSpace(series.Path) && Path.IsPathRooted(series.Path))
+        if (settings.LocalEpisodeGroup && !string.IsNullOrWhiteSpace(seriesPath) && Path.IsPathRooted(seriesPath))
         {
             // Read-only media sidecar; remote cache is never written here.
             foreach (var name in new[] { "episodegroup.json", "episode-group.json" })
             {
-                var sidecar = Path.Combine(series.Path, name);
+                var sidecar = Path.Combine(seriesPath, name);
                 if (!File.Exists(sidecar)) continue;
                 await using var stream = File.OpenRead(sidecar);
                 return Parse(await MetadataLanguageService.ReadBoundedAsync(stream, 4 * 1024 * 1024, token).ConfigureAwait(false));
             }
         }
-        var reference = series.GetProviderId(ProviderKey);
         if (string.IsNullOrWhiteSpace(reference)) return null;
         var external = MetadataLanguageService.IsHttpUrl(reference);
         if (!external && (reference.Length > 128 || !reference.All(c => char.IsLetterOrDigit(c) || c is '-' or '_')))
@@ -219,7 +224,7 @@ public sealed class EpisodeGroupService
                 if (order < 0 || order >= int.MaxValue || airedSeason < 0 || airedEpisode < 1 || !coordinates.Add((season, order + 1))) throw new InvalidDataException("Invalid or duplicate episode coordinates.");
                 var id = Text(ep, raw ? "id" : "TmdbId");
                 if (id != null) id = MetadataLanguageService.PositiveId(id) ?? throw new InvalidDataException("Invalid TMDB episode id.");
-                result.Episodes.Add(new EpisodeGroupMapping(season, order + 1, airedSeason, airedEpisode, id, Text(ep, "name"), Text(ep, "overview")));
+                result.Episodes.Add(new EpisodeGroupMapping(season, order + 1, airedSeason, airedEpisode, id, Text(ep, "name"), Text(ep, "overview"), EpisodeAirDate(ep)));
                 ordinal++;
             }
         }
@@ -240,6 +245,11 @@ public sealed class EpisodeGroupService
         }
         throw new InvalidDataException("Invalid episode-group air_date; expected ISO date or offset timestamp.");
     }
+    // Episode dates are optional display data: an absent or malformed value is null, never a parse failure.
+    static DateTimeOffset? EpisodeAirDate(JsonElement episode)
+    {
+        try { return AirDate(episode); } catch (InvalidDataException) { return null; }
+    }
     static bool Property(JsonElement value, string key, out JsonElement result)
     {
         if (value.ValueKind == JsonValueKind.Object)
@@ -256,4 +266,4 @@ public sealed class EpisodeGroupDocument
     public List<EpisodeGroupMapping> Episodes { get; } = new();
 }
 public sealed record EpisodeGroupInfo(int Order, string? Name, string? Overview, DateTimeOffset? AirDate = null);
-public sealed record EpisodeGroupMapping(int GroupSeason, int GroupEpisode, int AiredSeason, int AiredEpisode, string? TmdbId, string? Name, string? Overview);
+public sealed record EpisodeGroupMapping(int GroupSeason, int GroupEpisode, int AiredSeason, int AiredEpisode, string? TmdbId, string? Name, string? Overview, DateTimeOffset? AirDate = null);

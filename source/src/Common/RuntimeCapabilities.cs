@@ -161,6 +161,8 @@ public sealed class RuntimeCapabilities
         Set("Activation.NotificationEpisodes", Good("Host") && NotificationEnhancement.IsEnabled, NotificationEnhancement.Detail);
         Set("Activation.MetadataEditNotification", Good("Host") && MetadataEditNotification.IsEnabled, MetadataEditNotification.Detail);
         Set("Activation.ImageEditNotification", Good("Host") && ImageEditNotification.IsEnabled, ImageEditNotification.Detail);
+        Set("Activation.MissingEpisodeGroup", Good("Host") && Provider.MissingEpisodeGroupControl.IsEnabled,
+            Provider.MissingEpisodeGroupControl.Detail + " Replaced=" + Provider.MissingEpisodeGroupControl.ReplacedResults);
         Set("Activation.PerfectSubtitle", Good("Host") && SubtitleSearchOptimization.IsEnabled, SubtitleSearchOptimization.Detail);
         Set("Backend.FavoriteNotifications", services.Favorites != null, "ItemAdded favorite update worker; opt-in rebuild event, current user visibility and favorites. Pending=" + (services.Favorites?.PendingCount ?? 0) + "; completed=" + (services.Favorites?.CompletedItems ?? 0) + "; emitted=" + (services.Favorites?.EmittedRequests ?? 0) + "; rejected=" + (services.Favorites?.RejectedEvents ?? 0) + ". PUK/user budgets and native notification destination rules apply.");
         Set("Activation.ExclusiveRemoteFetcher", Good("Host") && ExclusiveRemoteFetcherControl.IsEnabled, ExclusiveRemoteFetcherControl.Detail);
@@ -205,7 +207,7 @@ public sealed class RuntimeCapabilities
             "Source (MovieDb OR TVDB) && Metadata.IsModSupported: dependency OR=" + (Good("Dependency.MovieDb") || Good("Dependency.Tvdb")) +
             "; business contract incomplete: admitted Movie/Series candidates use native TMDB language, validated Series-cache metadata or TVDB typed originalLanguage fallback. Enabled queries include all languages and matching queries in the pinned non-nested synchronous refresh scope can expand the provider filter; native type/library admission remains. Stable admitted results remove Douban-labelled candidates and order the remaining image types without changing retained fields; ordinary missing origin/title still uses preferred-language and raw-empty priorities; Backdrop raw null/empty languages share preferred-exact priority. Movie/Series title fallback is a separate final heuristic after valid provider origins. Exact Season/Episode with a positive unchanged SeriesId can use the associated Series title after the query; zero SeriesId uses at most 64 native parent edges plus one ID re-resolution with stable late path identities. The existing preferred-language/native pipeline is not globally bounded. Episode raw null/empty eligible languages share preferred-exact priority. Selected Chinese origins use a valid late library metadata locale as the local sorting origin; image preference remains the entry snapshot. BoxSet title fallback joins the first native CollectionIds query result (Limit 10) with pipe separators; no collection-owned title or metadata is rewritten. TMDB Movie/Series can preserve labelled Backdrop languages through bounded query-operation association without mutating source DTOs. Over-budget/cyclic or unstable parent relations remain fail-closed; original unbounded ancestry, deep-nesting provider-scope parity, other Backdrop callers/legacy shared-state behavior, broader guard-abort/item-scope policies and malformed-tag/lazy preference semantics remain incomplete. Existing missing-image fallback separately retains its conservative kana/Hangul hint; no sorting operation writes images.");
         Set("UIFunction.IsMovieDbPluginSupported", false,
-            "Source AND: MovieDb adapter && UIFunction.IsModSupported; EnhanceMissingEpisodes lacks TMDB-to-virtual-episode backend; " + entries["Dependency.MovieDb"].Detail);
+            "Source AND: MovieDb adapter && UIFunction.IsModSupported; EnhanceMissingEpisodes has the episode-group replacement of the native MovieDb list (M146) but not the original own TMDB series/season fetch; " + entries["Dependency.MovieDb"].Detail);
         Set("Experience.IsOpenSubtitlesPluginSupported", false,
             "Source AND: OpenSubtitles adapter && Experience.IsModSupported; " + entries["Dependency.OpenSubtitles"].Detail);
         Set("Root.IsModSuccess", entries.Where(e => e.Key.EndsWith(".IsModSupported", StringComparison.Ordinal)).All(e => e.Value.Supported) && Conflicts.Count == 0,
@@ -216,7 +218,7 @@ public sealed class RuntimeCapabilities
     /// <summary>
     /// M143/F8: field-level editability for controls whose own consumer is assembled and host-verified while the
     /// complete group stays false. Group flags, IsModSuccess and parity claims are unchanged. Fields without a
-    /// complete consumer (LibraryScopePlayProgress, EnhanceMissingEpisodes, PreferOriginalPoster) stay gated.
+    /// complete consumer (LibraryScopePlayProgress, PreferOriginalPoster) stay gated.
     /// </summary>
     private void DefineFieldGates()
     {
@@ -252,6 +254,9 @@ public sealed class RuntimeCapabilities
         Fields("UIFunction.Preferences", services.Preferences != null, "First-admin library order/display preference copy.", "EnforceUserPreferences", "EnforceUserPreferencesScope");
         Fields("UIFunction.Projections", people, "Missing-name, total-episode and library-count response projections.", "BeautifyMissingMetadata", "ReplaceUnplayedWithTotal", "ShowLibraryItemCount");
         Fields("UIFunction.Collections", host, "Post-scan boxset suppression and season collection query.", "NoBoxsetsAutoCreation", "ShowCollectionsFromSeasons");
+        Fields("UIFunction.MissingEpisodes", host && Good("Dependency.MovieDb"),
+            "Pinned MovieDb 2.0 missing/upcoming list: episode-group numbering replacement when MovieDbEpisodeGroup is on; the original own TMDB series fetch is not reproduced.",
+            "EnhanceMissingEpisodes");
         Fields("UIFunction.Logs", host && services.Dashboard != null, "Bounded global page mapping in native log view.", "ReverseLogLines");
         Fields("Mod.Search", entries["Backend.Search"].Supported, "Typed Chinese search index subsets; default mixed named/LiveTV coverage partial.",
             "EnhanceChineseSearch", "EnhanceChineseSearchMode", "SearchScope", "SearchTuningPreferences");
@@ -261,7 +266,7 @@ public sealed class RuntimeCapabilities
             "Verified TheMovieDb 2.0 adapter: language fallback, episode groups, person enhancement and alternate endpoints.",
             "ChineseMovieDb", "FallbackLanguages", "MovieDbEpisodeGroup", "LocalEpisodeGroup", "EnhanceMovieDbPerson",
             "AltMovieDbConfig", "AltMovieDbApiUrl", "AltMovieDbImageUrl", "AltMovieDbApiKey");
-        Set("Field.Gated", true, "Still gated by complete-group flags: LibraryScopePlayProgress (global option inactive), EnhanceMissingEpisodes (no TMDB virtual-episode backend), PreferOriginalPoster (poster group incomplete).");
+        Set("Field.Gated", true, "Still gated by complete-group flags: LibraryScopePlayProgress (global option inactive), PreferOriginalPoster (poster group incomplete).");
     }
 
     private bool Good(string key) => entries[key].Supported;

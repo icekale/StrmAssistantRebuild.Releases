@@ -562,6 +562,9 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
         MetadataEditNotification.Configure(host.ApplicationVersion, options.EnhanceNotificationSystem, options.MetadataUpdateTrackedFields, libraries, notifications, Logger, userManager:users);
         ImageEditNotification.Configure(host.ApplicationVersion, options.EnhanceNotificationSystem, libraries, notifications, Logger, userManager:users);
         SubtitleSearchOptimization.Configure(host.ApplicationVersion, options.OptimizeSubtitle, host.Plugins, libraries, Logger);
+        Provider.MissingEpisodeGroupControl.Configure(host.ApplicationVersion, host.Plugins, options.UIFunctionOptions.EnhanceMissingEpisodes,
+            () => MetadataStore.GetOptions(), () => EpisodeGroupService, Logger, out var missingEpisodes);
+        Logger.Info("[StrmAssistantRebuild] {0}", missingEpisodes);
     }
     public void RefreshWebAssets()
     {
@@ -682,6 +685,7 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
         Provider.NativeSeasonCastControl.Disable();
         PersonDetailRefreshControl.Disable();
         Provider.NativePosterOrdering.Disable();
+        Provider.MissingEpisodeGroupControl.Disable();
         ScopeSelection.ConfigureUsers(null);
         SearchCoordinator?.Dispose();
         UserExperienceService?.Dispose();
