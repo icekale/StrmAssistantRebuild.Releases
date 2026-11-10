@@ -1,0 +1,205 @@
+<fieldset>
+
+    <legend class="hide mainHeader">${Filters}</legend>
+
+    <div class="fieldset-fields">
+        <div class="selectContainer hide playstateFilters fieldset-field">
+            <select is="emby-select" class="selectPlaystate" label="${LabelPlaystate}"></select>
+        </div>
+
+        <label class="toggleContainer simpleFilter viewSetting fieldset-field" data-settingname="IsFavorite">
+            <input type="checkbox" is="emby-toggle" />
+            <span>${Favorite}</span>
+        </label>
+
+        <label class="toggleContainer simpleFilter viewSetting fieldset-field" data-settingname="IsDuplicate">
+            <input type="checkbox" is="emby-toggle" />
+            <span>${Duplicates}</span>
+        </label>
+
+        <div class="selectContainer hide genreFilters fieldset-field">
+            <select is="emby-select" class="selectGenre" label="${Genre}" data-autoallany="false" data-settingname="GenreIds" multiple></select>
+        </div>
+
+        <div class="selectContainer hide officialRatingFilters fieldset-field">
+            <select is="emby-select" class="selectOfficialRating" data-settingname="OfficialRatings" data-delimiter="|" label="${LabelParentalRating}" data-autoallany="false" multiple></select>
+        </div>
+
+        <div class="selectContainer hide studioFilters fieldset-field">
+            <select is="emby-select" class="selectStudio" label="${Studio}" data-settingname="StudioIds" data-autoallany="false" multiple></select>
+        </div>
+
+        <div class="selectContainer hide tagFilters fieldset-field">
+            <select is="emby-select" class="selectTags" label="${Tag}" data-settingname="TagIds" data-autoallany="false" multiple></select>
+        </div>
+        <div class="selectContainer hide yearFilters fieldset-field">
+            <select is="emby-select" class="selectYears" data-settingname="Years" label="${Year}" data-autoallany="false" multiple></select>
+        </div>
+
+        <div class="selectContainer hide viewSetting fieldset-field" data-settingname="SeriesStatus">
+            <select is="emby-select" label="${LabelStatus}" class="selectSeriesStatus" data-settingname="SeriesStatus">
+                <option value="">${Any}</option>
+                <option value="Continuing">${Continuing}</option>
+                <option value="Ended">${Ended}</option>
+            </select>
+        </div>
+
+        <div class="selectContainer hide simpleFilter viewSetting fieldset-field" data-settingname="ChannelMappingStatus">
+            <select is="emby-select" class="selectChannelMappingStatus" label="${LabelGuideDataChannel}">
+                <option value="">${All}</option>
+                <option value="AutoMapped">${AutoMapped}</option>
+                <option value="ManuallyMapped">${ManuallyMapped}</option>
+                <option value="Unmapped">${NotMappedToGuideData}</option>
+            </select>
+        </div>
+    </div>
+</fieldset>
+
+<fieldset class="multiSettingsSection hide">
+
+    <legend>${HeaderMediaInfo}</legend>
+
+    <div class="fieldset-fields">
+        <div class="selectContainer hide containerFilters fieldset-field">
+            <select is="emby-select" class="selectContainers" data-settingname="Containers" label="${Container}" data-autoallany="false" multiple></select>
+        </div>
+
+        <div class="selectContainer hide videoCodecFilters fieldset-field">
+            <select is="emby-select" class="selectVideoCodecs" data-settingname="VideoCodecs" label="${LabelVideoCodec}" data-autoallany="false" multiple></select>
+        </div>
+
+        <div class="selectContainer hide fldExtendedVideoTypes fieldset-field">
+            <select is="emby-select" class="selectExtendedVideoTypes" data-settingname="ExtendedVideoTypes" label="${VideoType}" data-autoallany="false" multiple></select>
+        </div>
+
+        <div class="selectContainer hide simpleFilter viewSetting fieldset-field" data-settingname="Resolution">
+            <select is="emby-select" class="selectResolution" label="${Resolution}">
+                <option value="">${Any}</option>
+                <option value="4k">4K</option>
+                <option value="1080p">1080p</option>
+                <option value="720p">720p</option>
+                <option value="SD">SD</option>
+            </select>
+        </div>
+
+        <label class="toggleContainer simpleFilter viewSetting hide fieldset-field" data-settingname="Is3D">
+            <input type="checkbox" is="emby-toggle" />
+            <span>3D</span>
+        </label>
+
+        <div class="selectContainer hide audioCodecFilters fieldset-field">
+            <select is="emby-select" class="selectAudioCodecs" data-settingname="AudioCodecs" label="${LabelAudioCodec}" data-autoallany="false" multiple></select>
+        </div>
+
+        <div class="selectContainer hide audioLayoutFilters fieldset-field">
+            <select is="emby-select" class="selectAudioLayouts" data-settingname="AudioLayouts" label="${LabelAudioLayout}" data-autoallany="false" multiple></select>
+        </div>
+
+        <div class="selectContainer hide audioLanguageFilters fieldset-field">
+            <select is="emby-select" class="selectAudioLanguages" data-settingname="AudioLanguages" label="${LabelAudioLanguage}" data-autoallany="false" multiple></select>
+        </div>
+
+        <div class="selectContainer hide simpleFilter viewSetting fieldset-field" data-settingname="HasLyrics">
+            <select is="emby-select" class="selectHasLyrics" label="${Lyrics}">
+                <option value="">${Any}</option>
+                <option value="true">${Yes}</option>
+                <option value="false">${No}</option>
+            </select>
+        </div>
+
+        <div class="selectContainer hide simpleFilter viewSetting fieldset-field" data-settingname="HasSubtitles">
+            <select is="emby-select" class="selectHasSubtitles" label="${Subtitles}">
+                <option value="">${Any}</option>
+                <option value="true">${Yes}</option>
+                <option value="false">${No}</option>
+            </select>
+        </div>
+
+        <div class="selectContainer hide subtitleCodecFilters fieldset-field">
+            <select is="emby-select" class="selectSubtitleCodecs" data-settingname="SubtitleCodecs" label="${LabelSubtitleCodec}" data-autoallany="false" multiple></select>
+        </div>
+
+        <div class="selectContainer hide subtitleLanguageFilters fieldset-field">
+            <select is="emby-select" class="selectSubtitleLanguages" data-settingname="SubtitleLanguages" label="${LabelSubtitleLanguage}" data-autoallany="false" multiple></select>
+        </div>
+    </div>
+</fieldset>
+
+<fieldset class="multiSettingsSection hide">
+
+    <legend>${Features}</legend>
+    <div class="fieldset-fields">
+        <div class="selectContainer hide simpleFilter viewSetting fieldset-field" data-settingname="HasTrailer">
+            <select is="emby-select" label="${Trailers}">
+                <option value="">${Any}</option>
+                <option value="true">${Yes}</option>
+                <option value="false">${No}</option>
+            </select>
+        </div>
+
+        <div class="selectContainer hide simpleFilter viewSetting fieldset-field" data-settingname="HasSpecialFeature">
+            <select is="emby-select" label="${Extras}">
+                <option value="">${Any}</option>
+                <option value="true">${Yes}</option>
+                <option value="false">${No}</option>
+            </select>
+        </div>
+
+        <div class="selectContainer hide simpleFilter viewSetting fieldset-field" data-settingname="HasThemeSong">
+            <select is="emby-select" label="${ThemeSongs}">
+                <option value="">${Any}</option>
+                <option value="true">${Yes}</option>
+                <option value="false">${No}</option>
+            </select>
+        </div>
+
+        <div class="selectContainer hide simpleFilter viewSetting fieldset-field" data-settingname="HasThemeVideo">
+            <select is="emby-select" label="${ThemeVideos}">
+                <option value="">${Any}</option>
+                <option value="true">${Yes}</option>
+                <option value="false">${No}</option>
+            </select>
+        </div>
+    </div>
+</fieldset>
+
+<fieldset class="multiSettingsSection hide">
+
+    <legend>${Metadata}</legend>
+
+    <div class="fieldset-fields">
+        <div class="selectContainer hide simpleFilter viewSetting fieldset-field" data-settingname="IsLocked">
+            <select is="emby-select" label="${Locked}">
+                <option value="">${Any}</option>
+                <option value="true">${Yes}</option>
+                <option value="false">${No}</option>
+            </select>
+        </div>
+
+        <div class="selectContainer hide simpleFilter viewSetting fieldset-field" data-settingname="HasOverview">
+            <select is="emby-select" label="${Overview}">
+                <option value="">${Any}</option>
+                <option value="true">${Yes}</option>
+                <option value="false">${No}</option>
+            </select>
+        </div>
+    </div>
+</fieldset>
+
+<fieldset class="multiSettingsSection hide">
+    <legend>${HeaderMissingMetadata}</legend>
+    <div class="fieldset-fields fieldset-fields-listitems">
+        <label class="viewSetting toggleContainer fieldset-field" data-settingname="HasImdbId">
+            <input type="checkbox" is="emby-toggle" class="simpleFilter" data-settingname="HasImdbId" data-invert="true" />
+            <span>IMDb Id</span>
+        </label>
+        <label class="viewSetting toggleContainer fieldset-field" data-settingname="HasTvdbId">
+            <input type="checkbox" is="emby-toggle" class="simpleFilter" data-settingname="HasTvdbId" data-invert="true" />
+            <span>Tvdb Id</span>
+        </label>
+        <label class="viewSetting toggleContainer fieldset-field" data-settingname="HasTmdbId">
+            <input type="checkbox" is="emby-toggle" class="simpleFilter" data-settingname="HasTmdbId" data-invert="true" />
+            <span>MovieDb Id</span>
+        </label>
+    </div>
+</fieldset>

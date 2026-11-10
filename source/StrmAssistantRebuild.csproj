@@ -1,0 +1,57 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>StrmAssistantRebuild</AssemblyName>
+    <RootNamespace>StrmAssistantRebuild</RootNamespace>
+    <!-- Release versions must increase for the update feed: 0.1.<milestone>.0 -->
+    <Version>0.1.145</Version>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <!-- Resolve references only from explicit HintPaths and the framework. The default {CandidateAssemblyFiles}
+         picks same-named DLLs from tools/ and artifacts/ (e.g. net10.0 or test-aligned 0Harmony) instead of the HintPath. -->
+    <AssemblySearchPaths>{HintPathFromItem};{TargetFrameworkDirectory};{RawFileName}</AssemblySearchPaths>
+    <!-- Reproducible output independent of the checkout location (deterministic compile hashes source paths). -->
+    <Deterministic>true</Deterministic>
+    <PathMap>$(MSBuildProjectDirectory)=/_/StrmAssistantRebuild</PathMap>
+    <!-- Do not append the git commit to InformationalVersion: the published source tree has no .git. -->
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <!-- No git/SourceLink metadata in the output, so a checkout with .git and the published tree build identical bytes. -->
+    <EnableSourceControlManagerQueries>false</EnableSourceControlManagerQueries>
+    <EnableSourceLink>false</EnableSourceLink>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="src/**/*.cs" />
+    <Reference Include="MediaBrowser.Common"><HintPath>refs/MediaBrowser.Common.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="MediaBrowser.Controller"><HintPath>refs/MediaBrowser.Controller.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="MediaBrowser.Model"><HintPath>refs/MediaBrowser.Model.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Emby.Media.Model"><HintPath>refs/Emby.Media.Model.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Emby.Web.GenericEdit"><HintPath>refs/Emby.Web.GenericEdit.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="Emby.Web.GenericUI"><HintPath>refs/Emby.Web.GenericUI.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="0Harmony"><HintPath>tools/HarmonyCompatibility/packages/2.4.2/lib/net6.0/0Harmony.dll</HintPath><Private>false</Private></Reference>
+    <Reference Include="ToolGood.Words"><HintPath>tools/Pinyin/packages/3.1.0.3/lib/netstandard2.1/ToolGood.Words.dll</HintPath><Private>false</Private></Reference>
+    <EmbeddedResource Include="src/Properties/Resources.resx" LogicalName="StrmAssistantRebuild.Properties.Resources.resources" WithCulture="false" />
+    <EmbeddedResource Include="src/Properties/Resources.zh.resx" LogicalName="StrmAssistantRebuild.Properties.Resources.zh.resources" WithCulture="false" />
+    <EmbeddedResource Include="src/Properties/Resources.zh-hant.resx" LogicalName="StrmAssistantRebuild.Properties.Resources.zh-hant.resources" WithCulture="false" />
+    <EmbeddedResource Include="src/Properties/thumb.png" LogicalName="StrmAssistantRebuild.Properties.thumb.png" />
+    <EmbeddedResource Include="assets/dashboard/**/*" LogicalName="dashboard/%(RecursiveDir)%(Filename)%(Extension)" />
+    <EmbeddedResource Include="artifacts/rebuild/native-dashboard/**/*" LogicalName="native/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+  <Target Name="MergePrivateHarmony" AfterTargets="Build" Condition="'$(DesignTimeBuild)' != 'true'">
+    <PropertyGroup>
+      <HarmonyDll>$(MSBuildProjectDirectory)/tools/HarmonyCompatibility/packages/2.4.2/lib/net6.0/0Harmony.dll</HarmonyDll>
+      <RepackTool>$(MSBuildProjectDirectory)/tools/HarmonyCompatibility/packages/dotnet-ilrepack/tools/net10.0/any/ILRepackTool.dll</RepackTool>
+      <MergeDir>$(IntermediateOutputPath)merged/</MergeDir>
+    </PropertyGroup>
+    <Error Condition="!Exists('$(HarmonyDll)') Or !Exists('$(RepackTool)')" Text="Pinned local Harmony/ILRepack dependencies are missing; restore tools/HarmonyCompatibility packages first." />
+    <MakeDir Directories="$(MergeDir)" />
+    <Exec Command="dotnet &quot;$(RepackTool)&quot; /internalize /ndebug /noRepackRes /target:library /lib:&quot;$(MSBuildProjectDirectory)/refs&quot; /lib:&quot;$(MSBuildProjectDirectory)/tools/HarmonyCompatibility/runtime6/shared/Microsoft.NETCore.App/6.0.36&quot; /out:&quot;$(MergeDir)$(TargetFileName)&quot; &quot;$(IntermediateOutputPath)$(TargetFileName)&quot; &quot;$(HarmonyDll)&quot; &quot;$(MSBuildProjectDirectory)/tools/Pinyin/packages/3.1.0.3/lib/netstandard2.1/ToolGood.Words.dll&quot;" />
+    <Exec Command="dotnet build &quot;$(MSBuildProjectDirectory)/tools/HarmonyLinuxArm64Fix/HarmonyLinuxArm64Fix.csproj&quot; --nologo --configuration Release" />
+    <Exec Command="dotnet &quot;$(MSBuildProjectDirectory)/artifacts/rebuild/d92-cache-tool-bin/net10.0/HarmonyLinuxArm64Fix.dll&quot; --callcounting-x10 &quot;$(MergeDir)$(TargetFileName)&quot; &quot;$(HarmonyDll)&quot; &quot;$(MSBuildProjectDirectory)/refs&quot;" />
+    <Copy SourceFiles="$(MergeDir)$(TargetFileName)" DestinationFiles="$(TargetPath)" />
+  </Target>
+</Project>

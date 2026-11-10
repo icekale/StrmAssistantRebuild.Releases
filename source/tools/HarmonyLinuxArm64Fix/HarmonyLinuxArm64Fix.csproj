@@ -1,0 +1,7 @@
+<Project>
+  <PropertyGroup><BaseIntermediateOutputPath>../../artifacts/rebuild/d92-cache-tool-obj/</BaseIntermediateOutputPath><MSBuildProjectExtensionsPath>../../artifacts/rebuild/d92-cache-tool-obj/</MSBuildProjectExtensionsPath></PropertyGroup>
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><EnableDefaultItems>false</EnableDefaultItems><OutputPath>../../artifacts/rebuild/d92-cache-tool-bin/</OutputPath><AssemblyName>HarmonyLinuxArm64Fix</AssemblyName></PropertyGroup>
+  <ItemGroup><Compile Include="Program.cs" /><Compile Include="Thunk.cs" /><Reference Include="Mono.Cecil"><HintPath>../HarmonyCompatibility/packages/dotnet-ilrepack/tools/net10.0/any/Mono.Cecil.dll</HintPath></Reference></ItemGroup>
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+</Project>
