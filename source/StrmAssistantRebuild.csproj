@@ -8,7 +8,7 @@
     <AssemblyName>StrmAssistantRebuild</AssemblyName>
     <RootNamespace>StrmAssistantRebuild</RootNamespace>
     <!-- Release versions must increase for the update feed: 0.1.<milestone>.0 -->
-    <Version>0.1.150</Version>
+    <Version>0.1.151</Version>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <EnableDefaultEmbeddedResourceItems>false</EnableDefaultEmbeddedResourceItems>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>

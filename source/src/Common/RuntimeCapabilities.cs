@@ -167,7 +167,7 @@ public sealed class RuntimeCapabilities
             Provider.MissingEpisodeGroupControl.Detail + " Replaced=" + Provider.MissingEpisodeGroupControl.ReplacedResults);
         Set("Activation.DoubanChannel", Good("Host") && Provider.DoubanChannelService.Current?.Enabled == true && Provider.NativeChannelItemRefresh.IsEnabled,
             "Channel '" + Provider.DoubanChannel.ChannelName + "' service=" + (Provider.DoubanChannelService.Current != null) + "; enabled=" + (Provider.DoubanChannelService.Current?.Enabled == true) +
-            "; cachedLists=" + (Provider.DoubanChannelService.Current?.CachedCollections ?? 0) + "; refresh: " + Provider.NativeChannelItemRefresh.Detail + " Skipped=" + Provider.NativeChannelItemRefresh.Skipped +
+            "; cachedLists=" + (Provider.DoubanChannelService.Current?.CachedCollections ?? 0) + "; coverInvalidations=" + (Provider.DoubanChannelService.Current?.CoverInvalidations ?? 0) + "; refresh: " + Provider.NativeChannelItemRefresh.Detail + " Skipped=" + Provider.NativeChannelItemRefresh.Skipped +
             "; user views: hidden=" + (BoxsetUserViews.HiddenChannel ?? "none") + ".");
         Set("Activation.PerfectSubtitle",Good("Host") && SubtitleSearchOptimization.IsEnabled, SubtitleSearchOptimization.Detail);
         Set("Backend.FavoriteNotifications", services.Favorites != null, "ItemAdded favorite update worker; opt-in rebuild event, current user visibility and favorites. Pending=" + (services.Favorites?.PendingCount ?? 0) + "; completed=" + (services.Favorites?.CompletedItems ?? 0) + "; emitted=" + (services.Favorites?.EmittedRequests ?? 0) + "; rejected=" + (services.Favorites?.RejectedEvents ?? 0) + ". PUK/user budgets and native notification destination rules apply.");

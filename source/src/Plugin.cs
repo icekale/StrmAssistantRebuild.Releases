@@ -173,7 +173,13 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
             DoubanMetadataService = new Provider.DoubanMetadataService(libraryManager, providerManager, OutboundHttp, Paths, Path.Combine(folder, "douban"), () => MetadataStore.GetOptions(), Logger, fileSystem);
             MetadataLanguageService = new Provider.MetadataLanguageService(libraryManager, providerManager, () => new DirectoryService(Logger, fileSystem), () => MetadataStore.GetOptions(), OutboundHttp, Logger, Paths, Path.Combine(folder, "metadata-providers"));
             Provider.DoubanChannelService.Current = new Provider.DoubanChannelService(new Provider.DoubanFrodoClient(OutboundHttp),
-                Path.Combine(folder, "douban-channel-images"), () => ExperienceStore.GetOptions().EnableDoubanChannel, Logger);
+                Path.Combine(folder, "douban-channel-images"), () => ExperienceStore.GetOptions().EnableDoubanChannel, Logger,
+                invalidateCover: (externalId, oldPath) =>
+                {
+                    foreach (var item in libraryManager.GetItemList(new MediaBrowser.Controller.Entities.InternalItemsQuery { ExternalId = externalId, Recursive = true }))
+                        if (string.Equals(item.GetImageInfo(MediaBrowser.Model.Entities.ImageType.Primary, 0)?.Path, oldPath, StringComparison.Ordinal))
+                            item.DeleteImage(MediaBrowser.Model.Entities.ImageType.Primary, 0);
+                });
             EpisodeGroupService = new Provider.EpisodeGroupService(libraryManager, MetadataLanguageService, () => MetadataStore.GetOptions(), OutboundHttp, Paths, Path.Combine(folder, "episode-groups"), Logger);
             NfoActorService = new Provider.NfoActorService(libraryManager, () => MetadataStore.GetOptions(), Logger);
             ConfigureNativeMetadata();

@@ -34,7 +34,7 @@ public static class NativeImageCache
     public static readonly ImageType[] Order = { ImageType.Primary, ImageType.Logo, ImageType.Backdrop, ImageType.Thumb, ImageType.Banner, ImageType.Disc, ImageType.Art };
     public static readonly ImageType[] Extras = { ImageType.Thumb, ImageType.Banner, ImageType.Disc, ImageType.Art };
     private static readonly Dictionary<string, string> Mime = new(StringComparer.OrdinalIgnoreCase)
-    { [".jpg"] = "image/jpeg", [".jpeg"] = "image/jpeg", [".png"] = "image/png", [".webp"] = "image/webp", [".gif"] = "image/gif" };
+    { [".jpg"] = "image/jpeg", [".jpeg"] = "image/jpeg", [".png"] = "image/png", [".webp"] = "image/webp", [".gif"] = "image/gif", [".svg"] = "image/svg+xml" }; // TheMovieDb logos are often SVG
     private static readonly object Gate = new();
     private static Harmony? patcher;
     private static MethodInfo? installed;

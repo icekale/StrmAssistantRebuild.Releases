@@ -49,10 +49,18 @@ public sealed class DoubanChannelService
     private readonly Func<bool> enabled;
     private readonly ILogger logger;
     private readonly Func<DateTimeOffset> clock;
+    private readonly Action<string, string>? invalidateCover;
     private readonly SemaphoreSlim gate = new(1, 1);
     private readonly ConcurrentDictionary<string, (DateTimeOffset Fetched, IReadOnlyList<DoubanHotItem> Items)> cache = new(StringComparer.Ordinal);
-    public DoubanChannelService(DoubanFrodoClient client, string imageRoot, Func<bool> enabled, ILogger logger, Func<DateTimeOffset>? clock = null)
-    { this.client = client; this.imageRoot = imageRoot; this.enabled = enabled; this.logger = logger; this.clock = clock ?? (() => DateTimeOffset.UtcNow); }
+    /// <param name="invalidateCover">(channel external id, superseded poster path): drop that Primary image from the library item if it still points there.</param>
+    public DoubanChannelService(DoubanFrodoClient client, string imageRoot, Func<bool> enabled, ILogger logger, Func<DateTimeOffset>? clock = null,
+        Action<string, string>? invalidateCover = null)
+    {
+        this.client = client; this.imageRoot = imageRoot; this.enabled = enabled; this.logger = logger;
+        this.clock = clock ?? (() => DateTimeOffset.UtcNow); this.invalidateCover = invalidateCover;
+    }
+    public long CoverInvalidations => Interlocked.Read(ref coverInvalidations);
+    private long coverInvalidations;
     public bool Enabled => enabled();
     public int CachedCollections => cache.Count;
     public static ChannelItemResult Empty() => new() { Items = new List<ChannelItemInfo>(), TotalRecordCount = 0 };
@@ -155,20 +163,40 @@ public sealed class DoubanChannelService
         finally { gate.Release(); }
     }
 
-    /// <summary>Douban images reject requests without app UA/referer, so posters are served from a local copy.</summary>
+    /// <summary>
+    /// Douban images reject requests without app UA/referer, so posters are served from a local copy named
+    /// {subject}-{hash of cover URL}. A new cover URL yields a new file; like the original's cover invalidation, library items
+    /// still showing the superseded file lose that Primary image so Emby applies the new one on this listing.
+    /// </summary>
     internal async Task<string?> CacheImageAsync(DoubanHotItem item, CancellationToken token)
     {
         if (item.ImageUrl == null) return null;
         try
         {
             Directory.CreateDirectory(imageRoot);
-            var existing = Directory.EnumerateFiles(imageRoot, item.Id + ".*").FirstOrDefault(f => Path.GetExtension(f) is ".jpg" or ".png" or ".webp");
+            var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(item.ImageUrl)))[..8].ToLowerInvariant();
+            static bool Image(string f) => Path.GetExtension(f) is ".jpg" or ".png" or ".webp";
+            var existing = Directory.EnumerateFiles(imageRoot, item.Id + "-" + hash + ".*").FirstOrDefault(Image);
             if (existing != null) return existing;
+            // Older renditions: other hashes, or the unhashed M149 name.
+            var superseded = Directory.EnumerateFiles(imageRoot, item.Id + "*").Where(f => Image(f) &&
+                Path.GetFileNameWithoutExtension(f) is var stem && (stem == item.Id || stem.StartsWith(item.Id + "-", StringComparison.Ordinal))).ToArray();
             var (data, extension) = await client.GetImageAsync(item.ImageUrl, token).ConfigureAwait(false);
-            var path = Path.Combine(imageRoot, item.Id + extension);
+            var path = Path.Combine(imageRoot, item.Id + "-" + hash + extension);
             var temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
             await File.WriteAllBytesAsync(temp, data, token).ConfigureAwait(false);
             File.Move(temp, path, true);
+            foreach (var old in superseded)
+            {
+                // Every place this subject's poster can appear: its item in each hot folder, and each folder cover.
+                foreach (var external in Folders.Select(f => ItemId(f.Key, item.Type, item.Id)).Concat(Folders.Select(f => f.Key)))
+                {
+                    try { invalidateCover?.Invoke(external, old); }
+                    catch (Exception ex) { logger.Debug("[StrmAssistantRebuild] DoubanChannel - {0} cover invalidation failed: {1}", external, ex.Message); }
+                }
+                Interlocked.Increment(ref coverInvalidations);
+                try { if (File.Exists(old)) File.Delete(old); } catch (IOException) { } catch (UnauthorizedAccessException) { }
+            }
             return path;
         }
         catch (Exception ex) when (ex is not OperationCanceledException || !token.IsCancellationRequested)
@@ -186,7 +214,7 @@ public sealed class DoubanChannelService
         foreach (var file in Directory.EnumerateFiles(imageRoot))
         {
             var name = Path.GetFileName(file);
-            var stem = name.Split('.')[0];
+            var stem = name.Split('.')[0].Split('-')[0];
             if (keep.Contains(stem) && !name.EndsWith(".tmp", StringComparison.Ordinal)) continue;
             try { if (clock() - File.GetLastWriteTimeUtc(file) >= retention) { File.Delete(file); removed++; } } catch (IOException) { } catch (UnauthorizedAccessException) { }
         }
@@ -212,7 +240,9 @@ public sealed class DoubanChannelService
             Container = Path.GetExtension(new Uri(t.VideoUrl).AbsolutePath).TrimStart('.').ToLowerInvariant() is { Length: > 0 } ext ? ext : "mp4",
             RunTimeTicks = DoubanFrodo.RuntimeTicks(t.Runtime),
             IsRemote = true,
-            SupportsDirectPlay = true,
+            // Deviation from the original (DirectPlay=true): doubanio answers 418 to browser requests without the app
+            // UA/Referer, so clients must go through Emby's stream endpoint, which sends RequiredHttpHeaders (M151 host check).
+            SupportsDirectPlay = false,
             SupportsDirectStream = true,
             SupportsTranscoding = false,
             RequiredHttpHeaders = new Dictionary<string, string> { ["User-Agent"] = DoubanFrodo.UserAgent, ["Referer"] = "https://movie.douban.com/" }
