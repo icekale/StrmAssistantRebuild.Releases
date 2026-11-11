@@ -13,7 +13,7 @@ public sealed class BuildDoubanCacheTask : IScheduledTask, IConfigurableSchedule
 {
     private readonly ILibraryManager library;
     public BuildDoubanCacheTask(ILibraryManager libraryManager, IFileSystem fileSystem) => library = libraryManager;
-    public string Name => "Build Douban Cache";
+    public string Name => Common.UiLanguage.Text("Build Douban Cache", "构建豆瓣缓存", "建立豆瓣快取");
     public string Description => Resources.BuildDoubanCacheTask_Description_Build_Douban_metadata_cache_to_assist_MovieDb_scraping;
     public string Category => "Strm Assistant Rebuild";
     public string Key => "BuildDoubanCacheTask";

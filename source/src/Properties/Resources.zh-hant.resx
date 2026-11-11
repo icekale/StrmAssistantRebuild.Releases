@@ -387,8 +387,7 @@
     <value>允許的客戶端</value>
   </data>
   <data name="IntroSkipOptions_IntroDbApiKey_IntroDb_API_Key" xml:space="preserve">
-    <value>IntroSkipOptions_IntroDbApiKey_IntroDb_API_Key</value>
-    <comment>Fallback from strings.csv:literal-key; exact zh_hant translation pending.</comment>
+    <value>IntroDb API Key</value>
   </data>
   <data name="IntroSkipOptions_IntroDbApiKey_Optional_API_key_for_higher_daily_usage_limits" xml:space="preserve">
     <value>提供 API Key 可提高每日使用限額，預設為空。</value>
@@ -449,8 +448,7 @@
     <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hant translation pending.</comment>
   </data>
   <data name="IntroSkipOptions_TidbApiKey_TIDB_API_Key" xml:space="preserve">
-    <value>IntroSkipOptions_TidbApiKey_TIDB_API_Key</value>
-    <comment>Fallback from strings.csv:literal-key; exact zh_hant translation pending.</comment>
+    <value>TIDB API Key</value>
   </data>
   <data name="IntroSkipOptions_UnifiedIntroDbProviders_Tried_in_order_until_one_succeeds__Default_is_IntroDb_Tidb" xml:space="preserve">
     <value>在媒體庫設定中啟用，依序嘗試直到成功，預設為 Tidb,IntroDb</value>
@@ -837,8 +835,7 @@
     <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hant translation pending.</comment>
   </data>
   <data name="MetadataRefreshOptions_MdbListApiKey_MDBList_API_Key" xml:space="preserve">
-    <value>MetadataRefreshOptions_MdbListApiKey_MDBList_API_Key</value>
-    <comment>Fallback from strings.csv:literal-key; exact zh_hant translation pending.</comment>
+    <value>MDBList API Key</value>
   </data>
   <data name="MetadataRefreshOptions_MdbListApiKey_Used_to_improve_the_capability_of_Rotten_Tomatoes_score_retrieval__Default_is_BLANK_" xml:space="preserve">
     <value>用於提升獲取爛番茄評分的能力，預設為空。</value>

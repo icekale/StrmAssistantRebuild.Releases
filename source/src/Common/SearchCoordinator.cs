@@ -98,7 +98,7 @@ public sealed class SearchCoordinator : IDisposable
             {
                 if (disposed || revision != expected) return;
                 rebuildRequired = false;
-                var active = ChineseSearchCompatibility.Configure(version, repository, index, options.EnhanceChineseSearch, out var detail);
+                var active = PatchHealth.Record("ChineseSearch", ChineseSearchCompatibility.Configure(version, repository, index, options.EnhanceChineseSearch, out var detail));
                 Status = detail;
                 if (active) logger.Info("[StrmAssistantRebuild] {0}", detail); else logger.Warn("[StrmAssistantRebuild] {0}", detail);
             }

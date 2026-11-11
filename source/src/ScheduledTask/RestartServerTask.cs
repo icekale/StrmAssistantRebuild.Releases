@@ -9,7 +9,7 @@ public sealed class RestartServerTask : IScheduledTask, IConfigurableScheduledTa
 {
     private readonly IServerApplicationHost host;
     public RestartServerTask(IServerApplicationHost host) => this.host = host;
-    public string Name => "Restart Server";
+    public string Name => Common.UiLanguage.Text("Restart Server", "重启服务器", "重新啟動伺服器");
     public string Description => Resources.RestartServerTask_Description_Automatically_restart_server_when_specified_conditions_are_met;
     public string Category => "Strm Assistant Rebuild";
     public string Key => "RestartServerTask";

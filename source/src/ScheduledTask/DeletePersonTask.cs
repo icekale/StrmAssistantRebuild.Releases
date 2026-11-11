@@ -5,7 +5,7 @@ namespace StrmAssistantRebuild.ScheduledTask;
 
 public sealed class DeletePersonTask : IScheduledTask, IConfigurableScheduledTask
 {
-    public string Name => "Delete Persons (Debug metadata reset)";
+    public string Name => Common.UiLanguage.Text("Delete Persons (Debug metadata reset)", "删除人员（调试：重置人员元数据）", "刪除人員（偵錯：重設人員中繼資料）");
     public string Description => Resources.DeletePersonTask_Description_Deletes_all_persons;
     public string Category => "Strm Assistant Rebuild";
     public string Key => "DeletePersonTask";

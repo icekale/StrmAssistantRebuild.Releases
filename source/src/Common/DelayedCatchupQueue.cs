@@ -16,6 +16,17 @@ public sealed class DelayedCatchupQueue : IDisposable
     public Task Completion { get; }
     public int PendingCount { get { lock (gate) return pending.Count; } }
     public bool IsBusy { get { lock (gate) return current != null || pending.Count != 0; } }
+    /// <summary>Queued items plus the running batch, for the dashboard.</summary>
+    public int ActiveCount { get { lock (gate) return pending.Count + (current != null ? 1 : 0); } }
+    /// <summary>Dashboard cancel: drop queued items and cancel the running batch; the queue stays enabled for new events.</summary>
+    public int Clear()
+    {
+        CancellationTokenSource? cancel;
+        int count;
+        lock (gate) { count = pending.Count + (current != null ? 1 : 0); pending.Clear(); cancel = current; }
+        try { cancel?.Cancel(); } catch (ObjectDisposedException) { }
+        return count;
+    }
 
     public DelayedCatchupQueue(Func<long[], CancellationToken, Task> process, Action<string> report, int capacity = 10000)
     {

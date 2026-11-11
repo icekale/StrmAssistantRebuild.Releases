@@ -32,7 +32,15 @@ public sealed class OptionsController<T> : ControllerBase, IHasTabbedUIPages whe
     private readonly Action<T> prepare;
     private readonly Func<T, string, CancellationToken, Task<string>>? commandHandler;
     private readonly Func<OptionsView<T>, string, CancellationToken, Task<IPluginUIView?>>? viewCommandHandler;
-    public override PluginPageInfo PageInfo { get; }
+    private readonly bool main;
+    private readonly T titleSource = new();
+    /// <summary>Built per access so DisplayName follows the current UI culture (tab and sidebar names). The main page is
+    /// listed in the dashboard side menu like the original plugin (EnableInMainMenu, "video_settings" icon).</summary>
+    public override PluginPageInfo PageInfo => new()
+    {
+        Name = "StrmAssistantRebuild." + typeof(T).Name, DisplayName = titleSource.EditorTitle, IsMainConfigPage = main,
+        EnableInMainMenu = main, MenuIcon = main ? "video_settings" : null
+    };
     public IReadOnlyList<IPluginUIPageController> TabPageControllers { get; set; } = Array.Empty<IPluginUIPageController>();
     public OptionsController(string pluginId, SimpleFileStore<T> store, Action<T> prepare, bool main = false, Func<T, string, CancellationToken, Task<string>>? commandHandler = null,
         Func<OptionsView<T>, string, CancellationToken, Task<IPluginUIView?>>? viewCommandHandler = null, CancellationToken lifetime = default) : base(pluginId)
@@ -41,7 +49,7 @@ public sealed class OptionsController<T> : ControllerBase, IHasTabbedUIPages whe
         this.prepare = prepare;
         this.commandHandler = commandHandler;
         this.viewCommandHandler = viewCommandHandler;
-        PageInfo = new PluginPageInfo { Name = "StrmAssistantRebuild." + typeof(T).Name, DisplayName = new T().EditorTitle, IsMainConfigPage = main };
+        this.main = main;
     }
     public override Task<IPluginUIView> CreateDefaultPageView()
     {

@@ -10,7 +10,7 @@ public sealed class RefreshMetadataTask : IScheduledTask
 {
     private readonly ILibraryManager library;
     public RefreshMetadataTask(ILibraryManager library) => this.library = library;
-    public string Name => "Refresh Metadata";
+    public string Name => Common.UiLanguage.Text("Refresh Metadata", "刷新元数据", "重新整理中繼資料");
     public string Description => Resources.EpisodeRefreshTask_Description_Refresh_metadata_for_episodes_missing_overview;
     public string Category => "Strm Assistant Rebuild";
     public string Key => "MetadataRefreshTask";

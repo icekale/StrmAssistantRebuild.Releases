@@ -60,6 +60,8 @@ public sealed class MediaCatchupService : IDisposable
     public Task Completion => queue.Completion;
     public int PendingCount => queue.PendingCount;
     public bool IsBusy => queue.IsBusy;
+    public int ActiveCount => queue.ActiveCount;
+    public int CancelPending() => queue.Clear();
     public MediaCatchupService(Plugin plugin, ILibraryManager library, IUserDataManager? userData = null, IProviderManager? providerManager = null, IUserManager? userManager = null)
     {
         this.plugin = plugin;

@@ -86,6 +86,32 @@ public sealed class DashboardActivity : IDisposable
             catch (Exception error) { rows.Add(new() { PrimaryText = text("Session snapshot unavailable", "会话快照读取失败", "工作階段快照讀取失敗"), SecondaryText = error.GetType().Name }); }
         }
     }
+    /// <summary>M148 dashboard counts: running scheduled tasks, active sessions (playing or active in 15 minutes) and playing sessions.</summary>
+    public (int RunningTasks, int Sessions, int Playing) Counts()
+    {
+        var running = 0; var active = 0; var playing = 0;
+        try { running = tasks.ScheduledTasks.Count(t => t.State == TaskState.Running); } catch (Exception error) { logger.Debug("[StrmAssistantRebuild] Task count: {0}", error.GetType().Name); }
+        try
+        {
+            foreach (var s in sessions.Sessions)
+            {
+                var isPlaying = s.NowPlayingItem != null || s.FullNowPlayingItem != null;
+                if (isPlaying) playing++;
+                if (isPlaying || s.IsActive && s.LastActivityDate >= DateTimeOffset.UtcNow.AddMinutes(-15)) active++;
+            }
+        }
+        catch (Exception error) { logger.Debug("[StrmAssistantRebuild] Session count: {0}", error.GetType().Name); }
+        return (running, active, playing);
+    }
+    /// <summary>M148 dashboard: administrator cancels every currently running scheduled task (native ITaskManager.Cancel).</summary>
+    public int CancelRunningTasks(UserDto user)
+    {
+        if (user?.Policy?.IsAdministrator != true) throw new SecurityException("Administrator access required.");
+        var running = tasks.ScheduledTasks.Where(t => t.State == TaskState.Running).ToArray();
+        foreach (var task in running) tasks.Cancel(task);
+        if (running.Length > 0) logger.Info("[StrmAssistantRebuild] Administrator cancelled {0} running scheduled task(s) from the dashboard.", running.Length);
+        return running.Length;
+    }
     public async Task<string> RunAsync(string command, UserDto user, CancellationToken token)
     {
         if (user?.Policy?.IsAdministrator != true) throw new SecurityException("Administrator access required.");

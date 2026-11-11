@@ -17,26 +17,26 @@
   </data>
   <data name="AcceptButtonCaption" xml:space="preserve">
     <value>接受</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="ActivationOptions_LicenseStatus_InvalidLicense" xml:space="preserve">
-    <value>此授權無效或不適用。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>此授权无效或不适用。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="ActivationOptions_LicenseText_Note__The_License_ID_must_match_the_System_ID_displayed_below" xml:space="preserve">
-    <value>注意：授權 ID 必須與以下顯示的系統 ID 一致，截圖請注意打碼。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>注意：授权 ID 必须与以下显示的系统 ID 一致，截图请注意打码。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="ActivationOptions_LicenseText_Please_paste_the_license_file_content" xml:space="preserve">
-    <value>請貼上授權文件的內容</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>请粘贴授权文档的内容</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="AreYouSureToContinue" xml:space="preserve">
     <value>您确定要继续吗？</value>
   </data>
   <data name="BuildDoubanCacheTask_Description_Build_Douban_metadata_cache_to_assist_MovieDb_scraping" xml:space="preserve">
-    <value>建立豆瓣元資料緩存，用於輔助刮削</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>创建豆瓣元数据缓存，用于辅助刮削</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="CatchupTask_EpisodeRefresh_EpisodeRefresh" xml:space="preserve">
     <value>剧集元数据刷新</value>
@@ -57,92 +57,92 @@
     <value>清除片头片尾标记</value>
   </data>
   <data name="CreditsUI_EditorTitle_Credits" xml:space="preserve">
-    <value>致謝</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>致谢</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="CustomEncoderNotSupported" xml:space="preserve">
-    <value>自訂 ffmpeg 或系統環境不支援！</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>自定义 ffmpeg 或系统环境不支持！</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="CustomEncoderPathNotExist" xml:space="preserve">
-    <value>自訂 ffmpeg 不存在！</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>自定义 ffmpeg 不存在！</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="CustomProbeNotSupported" xml:space="preserve">
-    <value>自訂 ffprobe 或系統環境不支援！</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>自定义 ffprobe 或系统环境不支持！</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="CustomProbePathNotExist" xml:space="preserve">
-    <value>自訂 ffprobe 不存在！</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>自定义 ffprobe 不存在！</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="DashboardOptions_EditorTitle_Dashboard" xml:space="preserve">
-    <value>儀表板</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>仪表板</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="DashboardOptions_Memory_Usage" xml:space="preserve">
-    <value>記憶體佔用</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>内存占用</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="DashboardOptions_Search_Index" xml:space="preserve">
-    <value>搜尋索引</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>搜索索引</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="Dashboard_Active_Sessions" xml:space="preserve">
-    <value>目前活動會話: {0}</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>当前活动会话: {0}</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="Dashboard_Active_Sessions_Playing" xml:space="preserve">
-    <value>目前活動會話: {0} (其中 {1} 個正在播放)</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>当前活动会话: {0} (其中 {1} 个正在播放)</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="Dashboard_Pending_Refresh_Requests" xml:space="preserve">
-    <value>待處理的刷新請求: {0}</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>待处理的刷新请求: {0}</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="Dashboard_Restart_In_Countdown" xml:space="preserve">
-    <value>將在 {0:F1} 分鐘後自動重啟</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>将在 {0:F1} 分钟后自动重启</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="Dashboard_Restart_Pending" xml:space="preserve">
-    <value>自動重啟待執行（伺服器繁忙）</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>自动重启待运行（服务器繁忙）</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="Dashboard_Running_Catchup_Tasks" xml:space="preserve">
-    <value>正在執行的追更任務: {0}</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>正在运行的追更任务: {0}</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="Dashboard_Running_Scheduled_Tasks" xml:space="preserve">
-    <value>正在執行的排程任務: {0}</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>正在运行的调度任务: {0}</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="Dashboard_Search_Index_Optimize" xml:space="preserve">
-    <value>最佳化</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>优化</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="Dashboard_Search_Index_Optimize_Confirm" xml:space="preserve">
-    <value>立即最佳化搜尋索引？該過程可能耗時較長，期間將阻塞資料庫寫入。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>立即优化搜索索引？该过程可能耗时较长，期间将阻塞数据库写入。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="Dashboard_Search_Index_Optimizing" xml:space="preserve">
-    <value>正在最佳化搜尋索引...</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>正在优化搜索索引...</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="Dashboard_Search_Index_Rebuild" xml:space="preserve">
     <value>重建</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="Dashboard_Search_Index_Rebuild_Confirm" xml:space="preserve">
-    <value>立即重建搜尋索引？該過程將完整重建索引，期間將阻塞資料庫寫入。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>立即重建搜索索引？该过程将完整重建索引，期间将阻塞数据库写入。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="Dashboard_Search_Index_Rebuilding" xml:space="preserve">
-    <value>正在重建搜尋索引...</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>正在重建搜索索引...</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="Dashboard_Search_Index_Reclaimed" xml:space="preserve">
     <value>上次回收 {0}</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="DeletePersonTask_Description_Deletes_all_persons" xml:space="preserve">
     <value>清除所有人员数据</value>
@@ -155,34 +155,34 @@
   </data>
   <data name="DoubanAssistScrapeOption_Cast_Cast" xml:space="preserve">
     <value>中文化演员和角色</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="DoubanAssistScrapeOption_NameOverview_NameOverview" xml:space="preserve">
-    <value>替換非中文標題或簡介</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>替换非中文标题或简介</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="DoubanAssistScrapeOption_Poster_Poster" xml:space="preserve">
-    <value>無海報則用豆瓣</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>无海报则用豆瓣</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="DoubanAssistScrapeOption_Rating_Rating" xml:space="preserve">
-    <value>豆瓣評分作為公眾評分</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>豆瓣评分作为公众评分</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="EnforceUserDisplayOption_LibraryOrder_LibraryOrder" xml:space="preserve">
-    <value>強制媒體庫排序</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>强制媒体库排序</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="EnforceUserDisplayOption_SeriesDisplay_SeriesDisplay" xml:space="preserve">
-    <value>強制季集顯示樣式</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>强制季集显示样式</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="EpisodeRefreshOption_DefaultEpisodeName_Default_Episode_Name" xml:space="preserve">
     <value>默认集标题</value>
   </data>
   <data name="EpisodeRefreshOption_DefaultSeasonName_Default_Season_Name" xml:space="preserve">
-    <value>預設季標題</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>默认季标题</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="EpisodeRefreshOption_NoImage_No_Image" xml:space="preserve">
     <value>无图</value>
@@ -200,12 +200,12 @@
     <value>按偏好刷新剧集缺失的元数据和图片</value>
   </data>
   <data name="ExclusiveControl_BlockRemoteFetcher_BlockRemoteFetcher" xml:space="preserve">
-    <value>阻止遠端刮削器</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>阻止远程刮削器</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="ExclusiveControl_CatchAllAllowChapterImage_CatchAllAllowChapterImage" xml:space="preserve">
-    <value>盡可能全放行含章節圖</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>尽可能全放行含章节图</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="ExclusiveControl_CatchAllAllow_CatchAllAllow" xml:space="preserve">
     <value>尽可能全放行</value>
@@ -235,16 +235,16 @@
     <value>无持久化整合</value>
   </data>
   <data name="ExclusiveControl_UnconditionalBlock_UnconditionalBlock" xml:space="preserve">
-    <value>無條件阻止</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>无条件阻止</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="ExperienceEnhanceOptions_BeautifyMultiVersion_Beautify_Multi_Versions_Display" xml:space="preserve">
     <value>美化多版本</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="ExperienceEnhanceOptions_BeautifyMultiVersion_Beautify_multi_versions_display_based_on_preference__Default_if_OFF_" xml:space="preserve">
-    <value>按偏好美化多版本，預設為關閉。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>按偏好美化多版本，默认为关闭。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="ExperienceEnhanceOptions_EditorTitle_Experience_Enhance" xml:space="preserve">
     <value>体验增强</value>
@@ -256,12 +256,12 @@
     <value>启用深度删除</value>
   </data>
   <data name="ExperienceEnhanceOptions_EnableDoubanChannel_Enable_Douban_Channel" xml:space="preserve">
-    <value>啟用豆瓣推薦頻道</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>启用豆瓣推荐频道</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="ExperienceEnhanceOptions_EnableDoubanChannel_Enable_the_Douban_hot_movie_TV_and_show_channel__Default_is_OFF_" xml:space="preserve">
-    <value>展示最近熱門電影、劇集和綜藝，支援播放預告片，預設為關閉。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>展示最近热门电影、剧集和综艺，支持播放预告片，默认为关闭。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="ExperienceEnhanceOptions_EnhanceNotification_Enhance_Notification" xml:space="preserve">
     <value>通知系统增强</value>
@@ -270,12 +270,12 @@
     <value>按电视节目分组的新增和删除通知中添加集信息，提供媒体深度删除通知，默认关闭。</value>
   </data>
   <data name="ExperienceEnhanceOptions_FolderVideoGroupingLimit_Adjust_video_grouping_limit_per_folder__Default_is_8_" xml:space="preserve">
-    <value>調整同目錄合併影片數量限制，預設為 8 或 12。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>调整同目录合并视频数量限制，默认为 8 或 12。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="ExperienceEnhanceOptions_FolderVideoGroupingLimit_Folder_Video_Grouping_Limit" xml:space="preserve">
-    <value>電影同目錄合併最大值</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>电影同目录合并最大值</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="ExperienceEnhanceOptions_MergeMoviePreferences_Movie_Merge_Preference" xml:space="preserve">
     <value>电影合并偏好</value>
@@ -285,15 +285,15 @@
   </data>
   <data name="ExperienceEnhanceOptions_MultipleVersionsOptions_Multiple_Versions" xml:space="preserve">
     <value>多版本</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="ExperienceEnhanceOptions_OptimizeSubtitle_Optimize_Subtitle" xml:space="preserve">
-    <value>優化字幕下載</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>优化字幕下载</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="ExperienceEnhanceOptions_OptimizeSubtitle_Optimize_open_subtitle_download_for_Strm__Default_is_OFF_" xml:space="preserve">
-    <value>為 STRM 最佳化 OpenSubtitles 搜尋和下載字幕，支援雜湊匹配但僅限本機掛載路徑，預設為關閉。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>为 STRM 优化 OpenSubtitles 搜索和下载字幕，支持哈希匹配但仅限本机挂载路径，默认为关闭。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="ExperienceEnhanceOptions_SplitMovieButton_Split_multi_version_movies_in_all_libraries" xml:space="preserve">
     <value>在所有库中拆分多版本电影（电视节目请扫库）</value>
@@ -353,20 +353,20 @@
     <value>无头像人员</value>
   </data>
   <data name="HidePersonOption_NonChinese_NonChinese" xml:space="preserve">
-    <value>非中文名人員</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>非中文名人员</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="ImageCapturePostProcess_EnsureAspect16By9_EnsureAspect16By9" xml:space="preserve">
-    <value>確保圖像比例最佳</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>确保图像比例最佳</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="ImageCapturePostProcess_EnsureAspect2By3_EnsureAspect2By3" xml:space="preserve">
-    <value>強制海報為豎圖</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>强制海报为竖图</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="ImageCapturePostProcess_GenerateBackdrop_Generate_Backdrop" xml:space="preserve">
-    <value>生成劇照或背景圖</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>生成剧照或背景图</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="IntroDetectionEnhancedNotEnabled" xml:space="preserve">
     <value>原生片头探测增强未启用，提取声纹任务已中止。</value>
@@ -387,12 +387,11 @@
     <value>允许的客户端</value>
   </data>
   <data name="IntroSkipOptions_IntroDbApiKey_IntroDb_API_Key" xml:space="preserve">
-    <value>IntroSkipOptions_IntroDbApiKey_IntroDb_API_Key</value>
-    <comment>Fallback from strings.csv:literal-key; exact zh_hans translation pending.</comment>
+    <value>IntroDb API Key</value>
   </data>
   <data name="IntroSkipOptions_IntroDbApiKey_Optional_API_key_for_higher_daily_usage_limits" xml:space="preserve">
-    <value>提供 API Key 可提高每日使用限額，預設為空。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>提供 API Key 可提高每日使用限额，默认为空。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="IntroSkipOptions_IntroDetectionFingerprintMinutes_Intro_Detection_Fingerprint_Minutes" xml:space="preserve">
     <value>片头声纹探测时长 (分钟)</value>
@@ -401,19 +400,19 @@
     <value>自定义片头声纹探测时长，必须在 2 至 20 之间，默认为 10。</value>
   </data>
   <data name="IntroSkipOptions_IntroSkipFingerprintOptions_Fingerprint" xml:space="preserve">
-    <value>聲紋</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>声纹</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="IntroSkipOptions_IntroSkipPlaybackOptions_Playback" xml:space="preserve">
-    <value>行為</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>行为</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="IntroSkipOptions_IntroSkipPreferences_IntroSkip_Preferences" xml:space="preserve">
     <value>可选偏好设置</value>
   </data>
   <data name="IntroSkipOptions_IntroSkipScrapeOptions_Scrape" xml:space="preserve">
     <value>刮削</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="IntroSkipOptions_LibraryScope_Library_Scope" xml:space="preserve">
     <value>媒体库范围</value>
@@ -437,28 +436,27 @@
     <value>最小开头剧情时长 (秒)，默认为 60</value>
   </data>
   <data name="IntroSkipOptions_ParallelMarkerComputation_Enables_parallel_computation_of_fingerprint_markers_to_improve_performance__Default_is_OFF_" xml:space="preserve">
-    <value>啟用並行計算提升聲紋處理的效能，預設為關閉。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>启用并行计算提升声纹处理的性能，默认为关闭。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="IntroSkipOptions_ParallelMarkerComputation_Parallel_Marker_Computation" xml:space="preserve">
-    <value>片頭標記平行計算</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>片头标记并行计算</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="IntroSkipOptions_TidbApiKey_API_key_increases_daily_usage_limits" xml:space="preserve">
-    <value>提供 API Key 可提高每日使用限額，預設為空。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>提供 API Key 可提高每日使用限额，默认为空。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="IntroSkipOptions_TidbApiKey_TIDB_API_Key" xml:space="preserve">
-    <value>IntroSkipOptions_TidbApiKey_TIDB_API_Key</value>
-    <comment>Fallback from strings.csv:literal-key; exact zh_hans translation pending.</comment>
+    <value>TIDB API Key</value>
   </data>
   <data name="IntroSkipOptions_UnifiedIntroDbProviders_Tried_in_order_until_one_succeeds__Default_is_IntroDb_Tidb" xml:space="preserve">
-    <value>在媒體庫設定中啟用，依序嘗試直到成功，預設為 Tidb,IntroDb</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>在媒体库设置中启用，依次尝试直到成功，默认为 Tidb,IntroDb</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="IntroSkipOptions_UnifiedIntroDbProviders_Unified_IntroDb_Providers" xml:space="preserve">
-    <value>片頭片尾聚合刮削器</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>片头片尾聚合刮削器</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="IntroSkipOptions_UnlockIntroSkip_Built_in_Intro_Skip_Enhanced" xml:space="preserve">
     <value>原生片头探测增强</value>
@@ -476,12 +474,12 @@
     <value>无自动探测仅暂停操作设置片头片尾标记</value>
   </data>
   <data name="IntroSkipScrapeOptions_EnableAutomaticIntroScraping_Enable_Automatic_Scraping" xml:space="preserve">
-    <value>啟用自動刮削</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>启用自动刮削</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="IntroSkipScrapeOptions_EnableAutomaticIntroScraping_Scrape_intro_credits_markers_for_new_content__May_slow_down_library_scans__Default_is_OFF_" xml:space="preserve">
-    <value>入庫時自動刮削片頭片尾標記，可能會降低掃庫速度，預設為關閉。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>入库时自动刮削片头片尾标记，可能会降低扫库速度，默认为关闭。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="InvalidAltMovieDbApiKey" xml:space="preserve">
     <value>替代 TMDB API 密钥无效</value>
@@ -493,8 +491,8 @@
     <value>替代 TMDB 图像地址无效</value>
   </data>
   <data name="InvalidDiscoveryUrl" xml:space="preserve">
-    <value>本地發現位址無效，格式為 http://ip:port</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>本地发现地址无效，格式为 http://ip:port</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="InvalidFingerprintCatchup" xml:space="preserve">
     <value>原生片头探测增强未启用，设置追更无效</value>
@@ -509,20 +507,20 @@
     <value>电视节目或播出季 ID 无效: {0}</value>
   </data>
   <data name="ItemOrderOption_CollectionPerItemDateCreated_CollectionPerItemDateCreated" xml:space="preserve">
-    <value>庫內合集依項目加入日期排序</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>库内合集按项目加入日期排序</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="ItemOrderOption_NaturalSort_NaturalSort" xml:space="preserve">
-    <value>最佳化自然排序</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>优化自然排序</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="ItemOrderOption_ReverseEpisodeOrder_ReverseEpisodeOrder" xml:space="preserve">
-    <value>倒序顯示集</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>倒序显示集</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="ItemOrderOption_ReverseSeasonOrder_ReverseSeasonOrder" xml:space="preserve">
-    <value>倒序顯示季</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>倒序显示季</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="ItemType_Book_Book" xml:space="preserve">
     <value>书籍</value>
@@ -585,20 +583,20 @@
     <value>视频</value>
   </data>
   <data name="MediaInfoExtractOptions_CustomEncoderPath_Custom_ffmpeg_path" xml:space="preserve">
-    <value>自訂 ffmpeg 路徑</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>自定义 ffmpeg 路径</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MediaInfoExtractOptions_CustomEncoderPath_Used_for_Dobly_Vision_image_extraction__Default_is_EMPTY_" xml:space="preserve">
-    <value>用於 DV P5, ISO 視訊截圖，分散式擷取，預設為空。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>用于 DV P5, ISO 视频截图，分布式截取，默认为空。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MediaInfoExtractOptions_CustomProbePath_Custom_ffprobe_path" xml:space="preserve">
-    <value>自訂 ffprobe 路徑</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>自定义 ffprobe 路径</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MediaInfoExtractOptions_CustomProbePath_Used_for_ISO_media_info_extraction__Required_on_Linux__Default_is_EMPTY_" xml:space="preserve">
-    <value>用於提取 ISO, HDR Vivid 媒體訊息，分散式提取，預設為空。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>用于提取 ISO, HDR Vivid 媒体信息，分布式提取，默认为空。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MediaInfoExtractOptions_ExclusiveExtractFeatureControl_Exclusive_Extract_Feature_Control" xml:space="preserve">
     <value>可选独占模式功能控制</value>
@@ -610,12 +608,12 @@
     <value>视频截图的偏移位置，基于时长的百分比，必须在 10 至 90 之间，默认为 10。</value>
   </data>
   <data name="MediaInfoExtractOptions_ImageCapturePostProcessMode_Generate_additional_images__Default_is_OFF_" xml:space="preserve">
-    <value>調整或產生附加影像，預設為空。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>调整或生成附加图像，默认为空。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MediaInfoExtractOptions_ImageCapturePostProcessMode_Image_Capture_Post_Process" xml:space="preserve">
-    <value>影片截圖後處理</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>视频截图后处理</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MediaInfoExtractOptions_MediaInfoJsonRootFolder_MediaInfo_Json_Root_Folder" xml:space="preserve">
     <value>可选媒体信息 JSON 根目录</value>
@@ -636,20 +634,20 @@
     <value>保存或加载媒体信息和章节片头片尾标记至/自 JSON 文件，以及恢复预览缩略图 BIF。</value>
   </data>
   <data name="MediaInfoJsonRootFolderNotExist" xml:space="preserve">
-    <value>媒體資訊 JSON 根目錄不存在！</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>媒体信息 JSON 根目录不存在！</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MemoryOptions_EditorTitle" xml:space="preserve">
-    <value>記憶體設定</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>内存设置</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MemoryOptions_MemoryUsageLimitMB_Restart_server_if_memory_exceeds_limit_for_15_minutes_during_idle__Leave_blank_to_disable_" xml:space="preserve">
-    <value>伺服器空閒期間，若記憶體持續超過限制達15分鐘，將自動重新啟動伺服器。留空則禁用。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>服务器空闲期间，若内存持续超过限制达15分钟，将自动重新启动服务器。留空则禁用。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MemoryOptions_MemoryUsageLimitMb_Memory_Usage_Limit__MB_" xml:space="preserve">
-    <value>記憶體佔用限制 (MB)</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>内存占用限制 (MB)</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MergeMovieTask_Description_Merge_movies_per_library_or_across_libraries_per_preference" xml:space="preserve">
     <value>按偏好库内或跨库合并电影和电视节目，扫库后自动运行</value>
@@ -664,52 +662,52 @@
     <value>各媒体库内合并</value>
   </data>
   <data name="MetadataBuildOptions_EditorTitle_Build" xml:space="preserve">
-    <value>建構</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>构建</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MetadataCacheOptionRequiresChineseMovieDb" xml:space="preserve">
-    <value>元資料快取等級關閉前，無法關閉自訂 TMDB 備選語言功能！</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>元数据缓存等级关闭前，无法关闭自定义 TMDB 备选语言功能！</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MetadataCacheOption_None_None" xml:space="preserve">
-    <value>關閉</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>关闭</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MetadataCacheOption_PreferCacheThenOnline_PreferCacheThenOnline" xml:space="preserve">
-    <value>優先使用緩存</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>优先使用缓存</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MetadataCacheOption_PreferCacheThenOnline_PreferCacheThenOnline_Description" xml:space="preserve">
-    <value>優先使用緩存，若無則聯網刮削，並寫入緩存</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>优先使用缓存，若无则联网刮削，并写入缓存</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MetadataCacheOption_PreferOnlineWithCache_PreferOnlineWithCache" xml:space="preserve">
-    <value>在線刮削並緩存</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>在线刮削并缓存</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MetadataCacheOption_PreferOnlineWithCache_PreferOnlineWithCache_Description" xml:space="preserve">
-    <value>始終聯網刮削，並寫入緩存</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>始终联网刮削，并写入缓存</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MetadataCacheOption_UseOverrideCacheOnly_UseOverrideCacheOnly" xml:space="preserve">
-    <value>僅使用覆蓋緩存</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>仅使用覆盖缓存</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MetadataCacheOption_UseOverrideCacheOnly_UseOverrideCacheOnly_Description" xml:space="preserve">
-    <value>覆蓋快取總是優先於聯網刮削</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>覆盖缓存总是优先于联网刮削</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MetadataCacheRootFolderInitFailed" xml:space="preserve">
-    <value>元資料快取目錄結構初始化失敗！</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>元数据缓存目录结构初始化失败！</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MetadataCacheRootFolderNotAllowed" xml:space="preserve">
-    <value>元資料快取根目錄不能設定為預設設定資料夾！</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>元数据缓存根目录不能设置为默认设置文件夹！</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MetadataCacheRootFolderNotExist" xml:space="preserve">
-    <value>元資料緩存根目錄不存在！</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>元数据缓存根目录不存在！</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MetadataEnhanceOptions_AltMovieDbApiKey_Alternative_MovieDb_Api_Key" xml:space="preserve">
     <value>替代 TMDB API 密钥</value>
@@ -742,23 +740,23 @@
     <value>尽可能从 TVDB 获取中文或日文元数据，默认关闭。</value>
   </data>
   <data name="MetadataEnhanceOptions_DoubanAssistScrapeScope_Douban_assist_scope__Default_is_ALL_" xml:space="preserve">
-    <value>豆瓣輔助範圍，預設全選。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>豆瓣辅助范围，默认全选。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MetadataEnhanceOptions_DoubanScrapeButton_Batch_apply_Douban_metadata__no_need_to_refresh_metadata_" xml:space="preserve">
-    <value>全庫應用豆瓣元資料（無需刷新元資料）</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>全库应用豆瓣元数据（无需刷新元数据）</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MetadataEnhanceOptions_EnableAltMovieDbUrl" xml:space="preserve">
     <value>使用替代 TMDB 配置</value>
   </data>
   <data name="MetadataEnhanceOptions_EnableDoubanAssistScraping_Enable_Douban_Assist_Scraping" xml:space="preserve">
-    <value>啟用豆瓣輔助刮削</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>启用豆瓣辅助刮削</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MetadataEnhanceOptions_EnableDoubanAssistScraping_Prefer_Douban_rating__title__and_overview_over_MovieDb__Default_is_OFF_" xml:space="preserve">
-    <value>使用豆瓣的標題，簡介，評分，演員，角色優化 TMDB 的刮削結果，預設為關閉。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>使用豆瓣的标题，简介，评分，演员，角色优化 TMDB 的刮削结果，默认为关闭。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MetadataEnhanceOptions_EnhanceMovieDbPerson_Enhance_MovieDb_Person" xml:space="preserve">
     <value>演职人员增强 TMDB</value>
@@ -791,12 +789,12 @@
     <value>保存或加载剧集组至/自 JSON 文件，默认关闭。</value>
   </data>
   <data name="MetadataEnhanceOptions_MetadataCacheMode_Build_Local_Metadata_Cache" xml:space="preserve">
-    <value>建構本地元資料刮削來源，支援 TMDB 和豆瓣</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>构建本地元数据刮削来源，支持 TMDB 和豆瓣</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MetadataEnhanceOptions_MetadataCacheRootFolder_Metadata_Cache_Root_Folder" xml:space="preserve">
-    <value>元資料快取根目錄</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>元数据缓存根目录</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MetadataEnhanceOptions_MovieDbEpisodeGroup_Support_MovieDb_Episode_Group" xml:space="preserve">
     <value>支持剧集组刮削 TMDB</value>
@@ -806,59 +804,58 @@
   </data>
   <data name="MetadataEnhanceOptions_Scrape_Scrape" xml:space="preserve">
     <value>刮削</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MetadataRefreshOptions_DoubanAccessToken_Douban_Access_Token" xml:space="preserve">
     <value>豆瓣 Access Token</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MetadataRefreshOptions_DoubanAccessToken_Used_to_assist_in_retrieving_Douban_info__Default_is_BLANK_" xml:space="preserve">
-    <value>用於提升獲取豆瓣元資料的能力，預設為空。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>用于提升获取豆瓣元数据的能力，默认为空。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MetadataRefreshOptions_DoubanCookie_Douban_Cookie" xml:space="preserve">
     <value>豆瓣 Cookie</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MetadataRefreshOptions_DoubanCookie_Used_to_assist_in_refreshing_Douban_ratings" xml:space="preserve">
-    <value>用於輔助刷新豆瓣評分，預設為空。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>用于辅助刷新豆瓣评分，默认为空。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MetadataRefreshOptions_EditorTitle_Refresh" xml:space="preserve">
     <value>刷新</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MetadataRefreshOptions_EpisodeRefreshLibraryScope_Episode_Refresh_Library_Scope" xml:space="preserve">
-    <value>元資料刷新媒體庫範圍</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>元数据刷新媒体库范围</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MetadataRefreshOptions_EpisodeRefreshLibraryScope_Episode_refresh_library_scope__Blank_includes_all_TV_shows_libraries_" xml:space="preserve">
-    <value>元資料刷新媒體庫範圍，留空包含所有。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>元数据刷新媒体库范围，留空包含所有。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MetadataRefreshOptions_MdbListApiKey_MDBList_API_Key" xml:space="preserve">
-    <value>MetadataRefreshOptions_MdbListApiKey_MDBList_API_Key</value>
-    <comment>Fallback from strings.csv:literal-key; exact zh_hans translation pending.</comment>
+    <value>MDBList API Key</value>
   </data>
   <data name="MetadataRefreshOptions_MdbListApiKey_Used_to_improve_the_capability_of_Rotten_Tomatoes_score_retrieval__Default_is_BLANK_" xml:space="preserve">
-    <value>用於提升獲取爛番茄評分的能力，預設為空。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>用于提升获取烂番茄评分的能力，默认为空。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MetadataRefreshOptions_RatingUpdateLookbackDays_Douban_Rating_Update_Lookback_Days" xml:space="preserve">
-    <value>豆瓣評分更新回溯天數</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>豆瓣评分更新回溯天数</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MetadataRefreshOptions_RatingUpdateLookbackDays_Douban_rating_update_lookback_days_based_on_premiere_date__Default_is_365_days_" xml:space="preserve">
-    <value>基於電影或節目的首播日期的回溯天數，預設為365天。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>基于电影或节目的首播日期的回溯天数，默认为365天。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MetadataRefreshOptions_RefreshPersonPreferences_By_default__refresh_metadata__30_days_old__excluding_adults_and_those_with_an_avatar_" xml:space="preserve">
-    <value>預設不刷30天內保存過的演員元數據，排除成人和有頭像的演員，全量刷新優先權高。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>默认不刷30天内保存过的演员元数据，排除成人和有头像的演员，全量刷新优先级高。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MetadataRefreshOptions_RefreshPersonPreferences_Refresh_Person_Preferences" xml:space="preserve">
-    <value>演員刷新偏好設定</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>演员刷新偏好设置</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="ModOptions_ChineseMovieDb_Chinese_MovieDb" xml:space="preserve">
     <value>自定义 TMDB 备选语言</value>
@@ -921,44 +918,44 @@
     <value>搜索范围</value>
   </data>
   <data name="ModOptions_SearchTuningPreferences_Search_Tuning_Preferences" xml:space="preserve">
-    <value>搜尋偏好設定</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>搜索偏好设置</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MultiVersionDisplayOption_FileNameWithoutExtension_FileNameWithoutExtension" xml:space="preserve">
-    <value>強制檔案全名顯示</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>强制文件全名显示</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MultiVersionDisplayOption_MediaInfoExtended_MediaInfoExtended" xml:space="preserve">
-    <value>擴展媒體資訊顯示</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>扩展媒体信息显示</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MultiVersionDisplayOption_MediaInfo_MediaInfo" xml:space="preserve">
-    <value>基於媒體資訊顯示</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>基于媒体信息显示</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MultiVersionDisplayOption_SystemDefault_SystemDefault" xml:space="preserve">
-    <value>系統預設顯示</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>系统默认显示</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MultiVersionSortOption_HighToLowQuality_HighToLowQuality" xml:space="preserve">
-    <value>按畫質從高到低排序</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>按画质从高到低排序</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MultiVersionSortOption_LowToHighQuality_LowToHighQuality" xml:space="preserve">
-    <value>按畫質從低到高排序</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>按画质从低到高排序</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MultiVersionSortOption_PathAscending_PathAscending" xml:space="preserve">
-    <value>依媒體路徑正序排序</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>按媒体路径正序排序</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MultiVersionSortOption_PathDescending_PathDescending" xml:space="preserve">
-    <value>按媒體路徑倒序排序</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>按媒体路径倒序排序</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="MultiVersionSortOption_SystemDefault_SystemDefault" xml:space="preserve">
-    <value>系統預設排序</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>系统默认排序</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="NetworkOptions_EditorTitle_Network" xml:space="preserve">
     <value>网络</value>
@@ -970,20 +967,20 @@
     <value>服务器对外 HTTP 请求使用代理，默认关闭。</value>
   </data>
   <data name="NetworkOptions_LocalDiscoveryUrl_Customize_Local_Discovery_Url" xml:space="preserve">
-    <value>自訂本地發現地址</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>自定义本地发现地址</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="NetworkOptions_LocalDiscoveryUrl_Discover_local_reverse_proxy__Default_is_OFF_" xml:space="preserve">
-    <value>可使用本地反代位址作為發現位址，預設為空。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>可使用本地反代地址作为发现地址，默认为空。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="NetworkOptions_ProxyMode_Global_proxy_bypasses_private_subnets__Default_mode_is_Scraping_Whitelist_" xml:space="preserve">
-    <value>全域代理模式僅排除私有網段，預設為刮削白名單模式。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>全局代理模式仅排除私有网段，默认为刮削白名单模式。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="NetworkOptions_ProxyMode_Proxy_Mode" xml:space="preserve">
     <value>代理模式</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="No_Update_Message" xml:space="preserve">
     <value>无更新</value>
@@ -995,12 +992,12 @@
     <value>最爱有更新</value>
   </data>
   <data name="Notification_CollectionItemsAdded_EventName" xml:space="preserve">
-    <value>合集項目已新增</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>合集项目已添加</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="Notification_CollectionItemsRemoved_EventName" xml:space="preserve">
-    <value>合集項目已移除</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>合集项目已移除</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="Notification_CreditsUpdate_Description" xml:space="preserve">
     <value>{0} - {1} - 片尾标记已更新\n\n片尾时长: {2}\n\n由{3}更新</value>
@@ -1016,11 +1013,11 @@
   </data>
   <data name="Notification_ImageUpdate_EventDescription" xml:space="preserve">
     <value>Image Type: {0}</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="Notification_ImageUpdate_EventName" xml:space="preserve">
-    <value>媒體影像更新</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>媒体图像更新</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="Notification_IntroSkipUpdate_EventName" xml:space="preserve">
     <value>片头片尾已更新</value>
@@ -1032,8 +1029,8 @@
     <value>{0} - {1} - 片头标记已更新</value>
   </data>
   <data name="Notification_MetadataUpdate_EventName" xml:space="preserve">
-    <value>媒體元資料更新</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>媒体元数据更新</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="OKButtonCaption" xml:space="preserve">
     <value>接受</value>
@@ -1051,12 +1048,12 @@
     <value>持久化媒体信息</value>
   </data>
   <data name="PersonRefreshOption_DownloadImagesInAdvance_DownloadImagesInAdvance" xml:space="preserve">
-    <value>預先下載頭像</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>预先下载头像</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="PersonRefreshOption_ExcludeIfChinese_ExcludeIfChinese" xml:space="preserve">
-    <value>排除已有中文元數據</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>排除已有中文元数据</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="PluginOptions_CatchupMode_Catch_up_Mode__Experimental_" xml:space="preserve">
     <value>追更模式</value>
@@ -1083,8 +1080,8 @@
     <value>基于播放行为的剧集片头片尾探测，默认关闭。</value>
   </data>
   <data name="PluginOptions_HasConflictPluginLoaded" xml:space="preserve">
-    <value>偵測到多個魔改插件，部分功能可能受到影響。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>检测到多个魔改插件，部分功能可能受到影响。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="PluginOptions_IncludeExtra_Include_Extra" xml:space="preserve">
     <value>包含分集和附加内容</value>
@@ -1108,12 +1105,12 @@
     <value>媒体库范围，留空包含所有。</value>
   </data>
   <data name="PluginOptions_LicenseStatus_MultipleInstances" xml:space="preserve">
-    <value>此授權因在多個實例中被使用，所有魔改功能已被停用。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>此授权因在多个实例中被使用，所有魔改功能已被停用。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="PluginOptions_LicenseStatus_NetworkIssue" xml:space="preserve">
-    <value>授權未能通過驗證，魔改功能已停用。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>授权未能通过验证，魔改功能已停用。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="PluginOptions_MaxConcurrentCount_Max_Concurrent_Count" xml:space="preserve">
     <value>主最大并发线程数</value>
@@ -1134,20 +1131,20 @@
     <value>仅支持 STRM</value>
   </data>
   <data name="PluginUpdatedMessage" xml:space="preserve">
-    <value>此插件已更新成功。 Emby Server 將需要重新啟動才能使變更生效。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>此插件已更新成功。 Emby Server 将需要重新启动才能使变更生效。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="ProLogoGem" xml:space="preserve">
     <value> 💎 PRO</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="ProxyMode_Global_Global" xml:space="preserve">
-    <value>全域代理</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>全局代理</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="ProxyMode_Whitelist_Whitelist" xml:space="preserve">
-    <value>刮削白名單</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>刮削白名单</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="ProxyServer_Available" xml:space="preserve">
     <value>可用</value>
@@ -1156,24 +1153,24 @@
     <value>不可用</value>
   </data>
   <data name="RefreshPersonOption_DefaultImageRefresh_DefaultImageRefresh" xml:space="preserve">
-    <value>刷新缺失頭像</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>刷新缺失头像</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="RefreshPersonOption_DefaultMetadataRefresh_DefaultMetadataRefresh" xml:space="preserve">
-    <value>刷新30天未更新元數據</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>刷新30天未更新元数据</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="RefreshPersonOption_ExcludeAdultMetadata_ExcludeAdultMetadata" xml:space="preserve">
-    <value>排除成人元數據</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>排除成人元数据</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="RefreshPersonOption_FullImageRefresh_FullImageRefresh" xml:space="preserve">
-    <value>全量刷新頭像</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>全量刷新头像</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="RefreshPersonOption_FullMetadataRefresh_FullMetadataRefresh" xml:space="preserve">
-    <value>全量刷新元數據</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>全量刷新元数据</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="RefreshPersonTask_Description_Refreshes_and_repairs_Chinese_actors" xml:space="preserve">
     <value>刷新和修复演员信息，尽可能获取中文及头像</value>
@@ -1185,12 +1182,12 @@
     <value>项目链接</value>
   </data>
   <data name="RestartServerTask_Description_Automatically_restart_server_when_specified_conditions_are_met" xml:space="preserve">
-    <value>滿足指定條件時自動重新啟動伺服器</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>满足指定条件时自动重新启动服务器</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="SaveButtonCaption" xml:space="preserve">
-    <value>儲存</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>保存</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="ScanExternalSubtitleTask_Description_Scans_external_subtitles_for_videos" xml:space="preserve">
     <value>单独扫描视频的外挂字幕更新至媒体信息</value>
@@ -1199,44 +1196,44 @@
     <value>扫描外挂字幕</value>
   </data>
   <data name="SearchIndexOption_Full_Full" xml:space="preserve">
-    <value>標準</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>标准</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="SearchIndexOption_Full_Supports_fuzzy_and_pinyin_search" xml:space="preserve">
-    <value>支援模糊搜尋和拼音搜尋</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>支持模糊搜索和拼音搜索</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="SearchIndexOption_Lite_Better_performance_but_no_pinyin_search" xml:space="preserve">
-    <value>索引更小，僅支援模糊搜索</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>索引更小，仅支持模糊搜索</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="SearchIndexOption_Lite_Lite" xml:space="preserve">
-    <value>輕量</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>轻量</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="SearchTuningOption_DigitsAsTmdbId_DigitsAsTmdbId" xml:space="preserve">
-    <value>純數字搜尋字詞視為 TMDB 編號</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>纯数字搜索字词视为 TMDB 编号</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="SearchTuningOption_ExcludeOriginalTitle_ExcludeOriginalTitle" xml:space="preserve">
-    <value>排除原語言標題搜索</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>排除原语言标题搜索</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="SearchTuningOption_MixedChineseVariants_MixedChineseVariants" xml:space="preserve">
-    <value>簡繁混搜</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>简繁混搜</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="SearchTuningOption_ShowMediaInfo_ShowMediaInfo" xml:space="preserve">
-    <value>顯示媒體訊息</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>显示媒体信息</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="SearchTuningOption_SuppressSearchSuggestions_SuppressSearchSuggestions" xml:space="preserve">
-    <value>封鎖搜尋推薦列表</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>屏蔽搜索推荐列表</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="SearchTuningOption_TraditionalToSimplifiedChinese_TraditionalToSimplifiedChinese" xml:space="preserve">
-    <value>繁體轉簡體中文</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>繁体转简体中文</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="ServerPreferredMetadataLanguageIsNotZh" xml:space="preserve">
     <value>服务器首选元数据语言未设置为中文，刷新演员任务已中止。</value>
@@ -1263,28 +1260,28 @@
     <value>查看缺少的集增强</value>
   </data>
   <data name="UIFunctionOptions_LibraryScopePlayProgress_Separate_Play_Progress_by_Library" xml:space="preserve">
-    <value>各媒體庫內記錄播放進度及收藏</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>各媒体库内记录播放进度及收藏</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="UIFunctionOptions_LibraryScopePlayProgress_Tracks_play_progress_for_multi_versions_separately_per_library__Episodes_only_" xml:space="preserve">
-    <value>對分佈在不同媒體庫的多版本分開記錄播放進度和收藏，預設為關閉。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>对分布在不同媒体库的多版本分开记录播放进度和收藏，默认为关闭。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="UIFunctionOptions_MarkPreviousEpisodesPlayedThreshold_Playback_Threshold" xml:space="preserve">
-    <value>播放進度閾值</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>播放进度阈值</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="UIFunctionOptions_MarkPreviousEpisodesPlayedThreshold_Triggers_when_playback_progress_exceeds_this_percentage" xml:space="preserve">
-    <value>當前集播放進度超過此百分比時觸發，必須在 5 至 95 之間，預設為 50。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>当前集播放进度超过此百分比时触发，必须在 5 至 95 之间，默认为 50。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="UIFunctionOptions_MarkPreviousEpisodesPlayed_Mark_Previous_Episodes_Played" xml:space="preserve">
-    <value>標記前集為已播放</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>标记前集为已播放</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="UIFunctionOptions_MarkPreviousEpisodesPlayed_Mark_previous_in_progress_episodes_as_played_after_finishing_the_current_one__Default_is_OFF_" xml:space="preserve">
-    <value>當前集退出播放時，自動將先前的集標記為已播放，預設為關閉。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>当前集退出播放时，自动将先前的集标记为已播放，默认为关闭。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="UIFunctionOptions_NoBoxsetsAutoCreation_Prevent_Boxsets_Auto_Creation" xml:space="preserve">
     <value>隐藏合集媒体库</value>
@@ -1293,44 +1290,44 @@
     <value>用户界面隐藏合集媒体库，若删除可避免扫库时自动创建，默认关闭。</value>
   </data>
   <data name="UIFunctionOptions_OptimizeMediaItemOrder_Optimize_Media_Item_Display_Order" xml:space="preserve">
-    <value>按偏好調整顯示順序</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>按偏好调整显示顺序</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="UIFunctionOptions_OptimizeMediaItemOrder_Optimize_natural_sort__in_library_collection_order__Default_is_OFF_" xml:space="preserve">
-    <value>按偏好調整項目的顯示順序，預設為關閉。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>按偏好调整项目的显示顺序，默认为关闭。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="UIFunctionOptions_ReplaceUnplayedWithTotal_Replace_TV_show_unplayed_count_with_total_count__Default_is_OFF_" xml:space="preserve">
-    <value>顯示電視節目總集數而非未觀看數，預設為關閉。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>显示电视节目总集数而非未观看数，默认为关闭。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="UIFunctionOptions_ReplaceUnplayedWithTotal_Replace_Unplayed_With_Total" xml:space="preserve">
-    <value>總集數代替未觀看數</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>总集数代替未观看数</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="UIFunctionOptions_ReverseLogLines_Display_logs_in_the_reverse_order__from_newest_to_oldest__Default_is_OFF_" xml:space="preserve">
-    <value>以相反順序顯示日誌，從最新到最舊，預設為關閉。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>以相反顺序显示日志，从最新到最旧，默认为关闭。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="UIFunctionOptions_ReverseLogLines_Show_Logs_from_Newest_to_Oldest" xml:space="preserve">
-    <value>按下從新到舊顯示日誌</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>从新到旧显示日志</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="UIFunctionOptions_ShowCollectionsFromSeasons_Show_Collections_from_Seasons" xml:space="preserve">
-    <value>節目所屬合集同時考慮季</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>节目所属合集同时考虑季</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="UIFunctionOptions_ShowCollectionsFromSeasons_Show_collections_for_TV_show_considering_its_seasons__Default_is_OFF_" xml:space="preserve">
-    <value>在電視節目頁面顯示合集時，同時考慮季的收藏歸屬，預設為關閉。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>在电视节目页面显示合集时，同时考虑季的收藏归属，默认为关闭。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="UIFunctionOptions_ShowLibraryItemCount_Show_Library_Item_Count" xml:space="preserve">
-    <value>顯示媒體庫項目數量</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>显示媒体库项目数量</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="UIFunctionOptions_ShowLibraryItemCount_Show_the_item_count_indicator_for_libraries_on_the_home_screen" xml:space="preserve">
-    <value>在主畫面上顯示媒體庫項目數量標記，預設為關閉。</value>
-    <comment>Fallback from strings.csv:pro_zh_hant; exact zh_hans translation pending.</comment>
+    <value>在主画面上显示媒体库项目数量标记，默认为关闭。</value>
+    <comment>Reviewed mainland conversion of pro_zh_hant (scripts/resources/zh_hans_overrides.csv).</comment>
   </data>
   <data name="Uninstall_Warning" xml:space="preserve">
     <value>警告：中文搜索增强未正常关闭，Emby 将无法工作。</value>

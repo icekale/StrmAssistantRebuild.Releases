@@ -29,8 +29,12 @@ public sealed class MemoryMonitor : IDisposable
     private bool restartRequested;
     private bool disposed;
     private string status = "Disabled";
+    private double? countdown;
+    private bool busyPending;
     public Task Completion { get; }
     public string Status { get { lock (gate) return status; } }
+    /// <summary>Dashboard snapshot: configured limit, seconds left in the idle countdown, or a restart held back because the server is busy above the limit.</summary>
+    public (int? LimitMB, double? CountdownSeconds, bool BusyPending) RestartState { get { lock (gate) return (limit, countdown, busyPending); } }
 
     public MemoryMonitor(IServerApplicationHost host, ISessionManager sessions, ITaskManager tasks, ILogger logger, Func<bool>? additionalBusy = null)
         : this(host, sessions, tasks, logger, Stopwatch.GetTimestamp, Stopwatch.Frequency, ReadWorkingSet, TimeSpan.FromSeconds(30), additionalBusy) { }
@@ -58,7 +62,7 @@ public sealed class MemoryMonitor : IDisposable
             if (disposed) return;
             if (limit == memoryUsageLimitMB) return;
             limit = memoryUsageLimitMB;
-            exceededAt = null; restartRequested = false;
+            exceededAt = null; restartRequested = false; countdown = null; busyPending = false;
             status = limit.HasValue ? "Waiting for idle memory samples" : "Disabled";
             timer?.Dispose(); // Interrupt an outstanding tick immediately, including on disable.
             if (changed.CurrentCount == 0) changed.Release();
@@ -112,13 +116,14 @@ public sealed class MemoryMonitor : IDisposable
             { exceededAt = null; status = "Host restart unavailable"; return; }
             if (sessions.Sessions.Any(s => s.NowPlayingItem != null || s.FullNowPlayingItem != null) ||
                 tasks.ScheduledTasks.Any(task => task.State != TaskState.Idle) || additionalBusy?.Invoke() == true)
-            { exceededAt = null; status = "Busy; idle window reset"; return; }
+            { exceededAt = null; countdown = null; busyPending = workingSet() > (long)limit.Value * 1024 * 1024; status = "Busy; idle window reset"; return; }
             if (workingSet() <= (long)limit.Value * 1024 * 1024)
-            { exceededAt = null; restartRequested = false; status = "Below memory limit"; return; }
+            { exceededAt = null; restartRequested = false; countdown = null; busyPending = false; status = "Below memory limit"; return; }
             if (restartRequested) return;
             var now = timestamp();
             if (!exceededAt.HasValue || now < exceededAt.Value) exceededAt = now;
             var elapsed = (now - exceededAt.Value) / (double)frequency;
+            countdown = Math.Max(0, 900 - elapsed); busyPending = false;
             status = $"Idle above limit; restart in {Math.Max(0, Math.Ceiling(900 - elapsed))} seconds";
             if (elapsed < 900) return;
             stopping.Token.ThrowIfCancellationRequested();
@@ -134,7 +139,7 @@ public sealed class MemoryMonitor : IDisposable
     public void NotifyActivity() => ResetActivity();
     private void ResetActivity()
     {
-        lock (gate) { exceededAt = null; if (limit.HasValue && !disposed) status = "Activity observed; idle window reset"; }
+        lock (gate) { exceededAt = null; countdown = null; if (limit.HasValue && !disposed) status = "Activity observed; idle window reset"; }
     }
 
     public void Dispose()

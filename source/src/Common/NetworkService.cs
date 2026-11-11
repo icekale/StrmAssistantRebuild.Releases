@@ -95,10 +95,45 @@ public sealed class NetworkService
             options.ProxyServerStatus ??= new StatusItem();
             options.ProxyServerStatus.Status = resultStatus;
             options.ProxyServerStatus.Caption = resultStatus == ItemStatus.Succeeded ? Resources.ProxyServer_Available :
-                resultStatus == ItemStatus.Unavailable ? Resources.ProxyServer_Unavailable : "Network · plugin HTTP";
-            options.ProxyServerStatus.StatusText = resultText + " " + NativeRoutingDetail +
-                (string.IsNullOrWhiteSpace(options.LocalDiscoveryUrl) ? "" : " " + DiscoveryDetail);
+                resultStatus == ItemStatus.Unavailable ? Resources.ProxyServer_Unavailable : UiLanguage.Text("Network · plugin HTTP", "网络 · 插件 HTTP", "網路 · 外掛 HTTP");
+            // Chinese UI shows a translated summary; the technical routing/discovery details remain in Runtime diagnostics.
+            var discovery = !string.IsNullOrWhiteSpace(options.LocalDiscoveryUrl);
+            options.ProxyServerStatus.StatusText = UiLanguage.IsChinese
+                ? ChineseResult(resultText) + ChineseRoutingNote(NativeRoutingDetail) + (discovery ? ChineseDiscoveryNote(DiscoveryDetail) : "")
+                : resultText + " " + NativeRoutingDetail + (discovery ? " " + DiscoveryDetail : "");
         }
+    }
+
+    // Known limitations stay visible in Chinese too; other technical detail is in Runtime diagnostics.
+    private static string ChineseRoutingNote(string detail) => detail.Contains(ServerProxyGap, StringComparison.Ordinal)
+        ? UiLanguage.Text("", " 仅对插件自身的 HTTP 请求生效；Emby 全局出站代理没有可用的公开设置入口。", " 僅對外掛自身的 HTTP 請求生效；Emby 全域出站代理沒有可用的公開設定入口。")
+        : detail.StartsWith("Inactive", StringComparison.Ordinal) ? UiLanguage.Text("", " Emby 原生请求的代理路由未生效，详见运行时能力详情。", " Emby 原生請求的代理路由未生效，詳見執行期能力詳情。") : "";
+    private static string ChineseDiscoveryNote(string detail) => detail.Contains(LocalDiscoveryGap, StringComparison.Ordinal)
+        ? UiLanguage.Text("", " 本地发现地址未生效：当前 Emby 只公开 IP 形式的本地地址，没有发现地址设置入口。", " 本機探索位址未生效：目前 Emby 只公開 IP 形式的本機位址，沒有探索位址設定入口。")
+        : detail.StartsWith("Inactive", StringComparison.Ordinal) ? UiLanguage.Text("", " 本地发现地址未生效，详见运行时能力详情。", " 本機探索位址未生效，詳見執行期能力詳情。") : "";
+
+    private static string ChineseResult(string text)
+    {
+        string T(string hans, string hant) => UiLanguage.Text(text, hans, hant);
+        if (text.StartsWith("Google 204: ", StringComparison.Ordinal)) return T("Google 测试通过：", "Google 測試通過：") + text["Google 204: ".Length..];
+        return text switch
+        {
+            "Proxy check has not run in this session." => T("本次运行尚未测试代理。", "本次執行尚未測試代理。"),
+            "Previously applied network configuration remains active." => T("沿用之前已生效的网络设置。", "沿用之前已生效的網路設定。"),
+            "Proxy settings changed; run the Google check again." => T("代理设置已更改，请重新测试。", "代理設定已變更，請重新測試。"),
+            "Requested network settings are now applied." => T("新的网络设置已生效。", "新的網路設定已生效。"),
+            "Invalid HTTP(S) proxy endpoint or proxy mode." => T("代理地址或代理模式无效。", "代理位址或代理模式無效。"),
+            HttpsProxyGap => T("当前 .NET 不支持 https:// 代理地址，请改用 http:// 代理。", "目前 .NET 不支援 https:// 代理位址，請改用 http:// 代理。"),
+            "Checking Google via the selected proxy…" => T("正在通过代理测试 Google…", "正在透過代理測試 Google…"),
+            "Proxy is disabled or its HTTP(S) endpoint is invalid." => T("代理未启用或地址无效。", "代理未啟用或位址無效。"),
+            "Proxy check cancelled." => T("代理测试已取消。", "代理測試已取消。"),
+            "Google check exceeded the 999 ms deadline." => T("Google 测试超过 999 毫秒。", "Google 測試超過 999 毫秒。"),
+            _ when text.StartsWith("Requested network settings are NOT applied", StringComparison.Ordinal) =>
+                T("新的网络设置暂未生效：仍有请求在使用旧连接，请稍后再试。", "新的網路設定暫未生效：仍有請求在使用舊連線，請稍後再試。"),
+            _ when text.StartsWith("Google proxy check failed", StringComparison.Ordinal) || text.StartsWith("Google check did not return", StringComparison.Ordinal) =>
+                T("Google 测试失败。", "Google 測試失敗。"),
+            _ => text
+        };
     }
 
     /// <summary>User-command-only Google 204 check, always through the selected proxy (not the scraping whitelist).</summary>

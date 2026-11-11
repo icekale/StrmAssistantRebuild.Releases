@@ -210,8 +210,13 @@ public sealed class RuntimeCapabilities
             "Source AND: MovieDb adapter && UIFunction.IsModSupported; EnhanceMissingEpisodes has the episode-group replacement of the native MovieDb list (M146) but not the original own TMDB series/season fetch; " + entries["Dependency.MovieDb"].Detail);
         Set("Experience.IsOpenSubtitlesPluginSupported", false,
             "Source AND: OpenSubtitles adapter && Experience.IsModSupported; " + entries["Dependency.OpenSubtitles"].Detail);
-        Set("Root.IsModSuccess", entries.Where(e => e.Key.EndsWith(".IsModSupported", StringComparison.Ordinal)).All(e => e.Value.Supported) && Conflicts.Count == 0,
-            "Aggregate of eight complete controlled groups, not a claim that OFF features failed probing; loaded conflicts=" + string.Join(",", Conflicts));
+        // M148: original meaning (decompiled IsModSuccess): every patch is in its desired state. Feature completeness is
+        // reported by the *.IsModSupported groups above, not by this banner flag.
+        var failedPatches = PatchHealth.Failed;
+        Set("Root.IsModSuccess", Good("Host") && Conflicts.Count == 0 && failedPatches.Count == 0,
+            "Host=" + Good("Host") + "; loaded conflicts=" + string.Join(",", Conflicts) + "; patches recorded=" + PatchHealth.Recorded +
+            "; not in desired state=" + (failedPatches.Count == 0 ? "none" : string.Join(",", failedPatches)) +
+            ". Complete-group feature parity is reported separately by the *.IsModSupported entries.");
         DefineFieldGates();
     }
 
@@ -270,6 +275,23 @@ public sealed class RuntimeCapabilities
     }
 
     private bool Good(string key) => entries[key].Supported;
+
+    /// <summary>Shown only when IsModSuccess is false (generated VisibleCondition), like the original banner.</summary>
+    private StatusItem BannerStatus(bool success)
+    {
+        if (success) return new StatusItem { Status = ItemStatus.None };
+        var reasons = new List<string>();
+        if (!Good("Host")) reasons.Add(UiLanguage.Text("Emby version differs from the validated 4.10.2.0", "Emby 版本与已验证的 4.10.2.0 不同", "Emby 版本與已驗證的 4.10.2.0 不同"));
+        if (Conflicts.Count != 0) reasons.Add(UiLanguage.Text("conflicting plugins loaded: ", "检测到冲突插件：", "偵測到衝突外掛：") + string.Join(", ", Conflicts));
+        var failed = PatchHealth.Failed;
+        if (failed.Count != 0) reasons.Add(UiLanguage.Text("not in effect: ", "未能生效：", "未能生效：") + string.Join(", ", failed));
+        return new StatusItem
+        {
+            Caption = UiLanguage.Text("Some enhancements are not in effect", "部分增强功能未能生效", "部分增強功能未能生效"),
+            StatusText = string.Join(UiLanguage.Text("; ", "；", "；"), reasons) + UiLanguage.Text(". See Runtime diagnostics on the About page.", "。详见关于页的运行时能力详情。", "。詳見關於頁的執行期能力詳情。"),
+            Status = ItemStatus.Warning
+        };
+    }
     private void Set(string key, bool supported, string detail) => entries[key] = new(supported, detail);
     private static string Present(params object?[] values) => string.Join("/", values.Select(v => v == null ? "missing" : "present"));
 
@@ -393,7 +415,7 @@ public sealed class RuntimeCapabilities
         {
             case PluginOptions root:
                 root.IsModSuccess = Good("Root.IsModSuccess");
-                root.ModStatus = new StatusItem { Caption = "Rebuild · runtime capabilities", StatusText = Summary, Status = root.IsModSuccess ? ItemStatus.None : ItemStatus.Warning };
+                root.ModStatus = BannerStatus(root.IsModSuccess);
                 root.ShowConflictPluginLoadedStatus = Conflicts.Count != 0;
                 root.ConflictPluginLoadedStatus = new StatusItem { Caption = Conflicts.Count == 0 ? "" : "Loaded plugin conflicts", StatusText = string.Join(", ", Conflicts), Status = Conflicts.Count == 0 ? ItemStatus.None : ItemStatus.Warning };
                 root.LicenseWarningStatus = new StatusItem(); // ShowLicenseWarning is intentionally an immutable false getter.

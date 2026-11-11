@@ -10,7 +10,7 @@ public sealed class ExtractVideoThumbnailTask : IScheduledTask
 {
     private readonly ILibraryManager library;
     public ExtractVideoThumbnailTask(ILibraryManager libraryManager) => library = libraryManager;
-    public string Name => "Extract Video Thumbnail";
+    public string Name => Common.UiLanguage.Text("Extract Video Thumbnail", "提取视频缩略图", "擷取影片縮圖");
     public string Description => Resources.ExtractVideoThumbnailTask_Description_Extract_video_thumbnail_preview;
     public string Category => "Strm Assistant Rebuild";
     public string Key => "VideoThumbnailExtractTask";

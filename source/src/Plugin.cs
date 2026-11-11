@@ -93,6 +93,7 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
     public Provider.DoubanMetadataService? DoubanMetadataService { get; private set; }
     public Provider.MetadataLanguageService? MetadataLanguageService { get; private set; }
     public Provider.EpisodeGroupService? EpisodeGroupService { get; private set; }
+    private string? searchIndexFile;
     public Provider.NfoActorService? NfoActorService { get; private set; }
     public Provider.PersonRefreshService? PersonRefreshService { get; private set; }
     public Plugin(IApplicationHost applicationHost, IApplicationPaths applicationPaths, ILogManager logManager,
@@ -151,7 +152,8 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
                 () => WorkQueue.IsBusy || EpisodeScopeNewItems.IsBusy || MediaCatchup?.IsBusy == true || MetadataPipeline?.IsBusy == true || SearchCoordinator?.IsBusy == true || FavoriteNotifications?.IsBusy == true);
             WorkQueue.WorkStarted += MemoryMonitor.NotifyActivity;
             MemoryMonitor.Configure(DashboardStore.GetOptions().MemoryOptions.MemoryUsageLimitMB);
-            SearchCoordinator = new SearchCoordinator(new ChineseSearchIndex(libraryManager, Paths, Path.Combine(folder, "search-index.json"), Logger), itemRepository, host.ApplicationVersion, Logger);
+            searchIndexFile = Path.Combine(folder, "search-index.json");
+            SearchCoordinator = new SearchCoordinator(new ChineseSearchIndex(libraryManager, Paths, searchIndexFile, Logger), itemRepository, host.ApplicationVersion, Logger);
             SearchCoordinator.Configure(ConfigurationStore.GetOptions().ModOptions);
             UserExperienceService = new UserExperienceService(libraryManager, userDataManager, userManager, sessionManager, Logger,
                 e => MediaCatchup?.OnPlaybackStop(e));
@@ -179,7 +181,7 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
             IntroScrapingService = new IntroSkip.IntroScrapingService(OutboundHttp, Logger);
             FingerprintApi = new FingerprintApi(libraryManager, fileSystem, applicationPaths, ffmpegManager, mediaEncoder, mediaMountManager, jsonSerializer, serverApplicationHost, Logger, WorkQueue, PersistMediaMutation,
                 resetPersistMutation: (item, mutation, token) => MediaInfoApi.ApplyAndPersistAsync(item, mutation, token, invalidateExistingCache: true));
-            IntroRefreshBridge.Configure(host.ApplicationVersion, true, this, libraryManager, userManager, taskManager, Logger, out var refreshBridge);
+            PatchHealth.Record("IntroRefreshBridge", IntroRefreshBridge.Configure(host.ApplicationVersion, true, this, libraryManager, userManager, taskManager, Logger, out var refreshBridge));
             Logger.Info("[StrmAssistantRebuild] {0}", refreshBridge);
             MarkerNotifications = new MarkerUpdateNotification(libraryManager,userManager,notifications,Logger,sessionManager);
             PlaySessionMonitor = new IntroSkip.PlaySessionMonitor(libraryManager, userManager, sessionManager,
@@ -216,8 +218,6 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
         if (model is ExperienceEnhanceOptions experience) experience.SplitMoviesButton.CommandId = "SplitMultiVersionMovies";
         if (model is PluginOptions root)
         {
-            root.ModStatus.Caption = "Rebuild · Core services active";
-            root.ModStatus.StatusText = "Media, markers, metadata, typed search and version grouping are implemented; full feature parity remains in progress.";
             NetworkService?.Prepare(root.NetworkOptions);
             root.AboutOptions.VersionInfoList = new Emby.Web.GenericEdit.Elements.List.GenericItemList
             {
@@ -227,14 +227,14 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
                 new()
                 {
                     PrimaryText = UiText("Rebuild updates", "重建版更新", "重建版更新"),
-                    SecondaryText = PluginUpdateService?.LastResult.Detail ?? "Update service is starting.",
+                    SecondaryText = UpdateStatusText(PluginUpdateService?.LastResult),
                     Button1 = new(UiText("Check for updates", "检查更新", "檢查更新")) { CommandId = "CheckPluginUpdate", IsEnabled = PluginUpdateService != null, IsVisible = true },
                     Button2 = new(Resources.UpdatePluginTask_Name_Update_Plugin) { CommandId = "UpdatePlugin", IsEnabled = PluginUpdateService?.LastResult.State == "update-available", IsVisible = true }
                 },
                 new()
                 {
                     PrimaryText = UiText("Automatic plugin updates", "自动插件更新", "自動外掛更新"),
-                    SecondaryText = PluginUpdateSuppression.Detail
+                    SecondaryText = SuppressionStatusText()
                 },
                 new()
                 {
@@ -244,36 +244,24 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
                 }
             };
         }
-        if (model is DashboardOptions dashboard && MaintenanceService != null)
+        if (model is DashboardOptions dashboard)
         {
-            dashboard.SystemInfoItemList = MaintenanceService.GetSystemInfo();
-            dashboard.SystemInfoItemList.Add(new()
-            {
-                PrimaryText = Resources.MemoryOptions_EditorTitle,
-                SecondaryText = MemoryMonitor?.Status ?? "Starting",
-                Button1 = new(UiText("Configure memory limit", "设置内存上限", "設定記憶體上限")) { CommandId = "ConfigureMemory", IsEnabled = true, IsVisible = true }
-            });
-            if (PersonRefreshService?.LastReport is { } peopleReport)
-                dashboard.SystemInfoItemList.Add(new() { PrimaryText = UiText("Person refresh", "人物刷新", "人物重新整理"),
-                    SecondaryText = $"{peopleReport.Processed}/{peopleReport.Total}; refreshed={peopleReport.Refreshed}, supplemented={peopleReport.Supplemented}, no-new-data={peopleReport.ProviderNegative}, adult-no-missing={peopleReport.KnownExcluded}, unknown={peopleReport.UnknownSkipped}, skipped={peopleReport.PreferenceSkipped}, failed={peopleReport.Failed}, cancelled={peopleReport.Cancelled}" });
-            dashboard.SystemInfoItemList.Add(new()
-            {
-                PrimaryText = UiText("Chinese search index", "中文搜索索引", "中文搜尋索引"),
-                SecondaryText = $"{SearchCoordinator?.Count ?? 0}: {SearchCoordinator?.Status ?? "Starting"}",
-                HasPercentage = SearchCoordinator?.IsBusy == true, PercentComplete = (int)(SearchCoordinator?.Progress ?? 0),
-                Button1 = new(UiText("Rebuild index", "重建索引", "重建索引")) { CommandId = "RebuildSearchIndex", IsEnabled = SearchCoordinator != null && ConfigurationStore.GetOptions().ModOptions.EnhanceChineseSearch && !SearchCoordinator.IsBusy, IsVisible = true },
-                Button2 = new(UiText("Cancel rebuild", "取消重建", "取消重建")) { CommandId = "CancelSearchRebuild", IsEnabled = SearchCoordinator?.IsBusy == true, IsVisible = true }
-            });
-            Activity?.Append(dashboard.SystemInfoItemList, UiText);
+            // M148: original two-item layout (memory usage with task/session sub-items, search index).
+            var counts = Activity?.Counts() ?? (0, 0, 0);
+            var restart = MemoryMonitor?.RestartState ?? (null, null, false);
+            long working; using (var process = System.Diagnostics.Process.GetCurrentProcess()) working = process.WorkingSet64;
+            int refreshQueue; try { refreshQueue = providers.GetRefreshQueue()?.Count ?? 0; } catch { refreshQueue = 0; }
+            long? indexBytes = null; try { if (searchIndexFile != null && File.Exists(searchIndexFile)) indexBytes = new FileInfo(searchIndexFile).Length; } catch { }
+            dashboard.SystemInfoItemList = DashboardOverview.Build(new DashboardSnapshot(working, restart.LimitMB, restart.CountdownSeconds, restart.BusyPending,
+                counts.RunningTasks, MediaCatchup?.ActiveCount ?? 0, refreshQueue, counts.Sessions, counts.Playing,
+                indexBytes, SearchCoordinator != null && ConfigurationStore.GetOptions().ModOptions.EnhanceChineseSearch,
+                SearchCoordinator?.IsBusy == true, SearchCoordinator?.Progress ?? 0));
         }
         var capabilities = CreateCapabilities();
         capabilities.Apply(model);
         if (model is PluginOptions preparedRoot)
         {
             var groups = capabilities.Entries.Where(pair => pair.Key.EndsWith(".IsModSupported", StringComparison.Ordinal)).ToArray();
-            var enabled = string.Join(", ", groups.Where(pair => pair.Value.Supported).Select(pair => pair.Key.Split('.')[0]));
-            preparedRoot.ModStatus.StatusText = UiText("Enabled base capability groups: ", "已启用的基础能力组：", "已啟用的基礎能力組：") + (enabled.Length == 0 ? "0" : enabled) +
-                UiText(". Other groups or sub-features remain partial. Open Runtime diagnostics under About for every reason and dependency check.", "。其余组或细分功能仍有缺口。关于页的运行时能力详情保留全部原因与依赖检查。", "。其餘組或細分功能仍有缺口。關於頁的執行期能力詳情保留全部原因與依賴檢查。");
             preparedRoot.AboutOptions.VersionInfoList.Add(new()
             {
                 PrimaryText = UiText("Episode library migration", "剧集库迁移", "劇集庫遷移"),
@@ -310,11 +298,26 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
         Experience = UserExperienceService, Preferences = UserPreferenceService, Versions = MultiVersionService, Favorites = FavoriteNotifications, MarkerNotifications = MarkerNotifications, DeepDeleteNotifications = DeepDeleteNotifications,
         Network = NetworkService, Dashboard = DashboardAssets, EpisodeBatches = EpisodeScopeBatches, StartupRecovery = EpisodeScopeStartupRecovery, NewEpisodes = EpisodeScopeNewItems, MediaCatchup = MediaCatchup
     });
-    private static string UiText(string english, string simplified, string traditional)
+    private static string UiText(string english, string simplified, string traditional) => Common.UiLanguage.Text(english, simplified, traditional);
+    private static string UpdateStatusText(Common.PluginUpdateResult? result) => result?.State switch
     {
-        var name = (Resources.Culture ?? System.Globalization.CultureInfo.CurrentUICulture).Name;
-        if (!name.StartsWith("zh", StringComparison.OrdinalIgnoreCase)) return english;
-        return name.Contains("Hant", StringComparison.OrdinalIgnoreCase) || name.EndsWith("TW", StringComparison.OrdinalIgnoreCase) || name.EndsWith("HK", StringComparison.OrdinalIgnoreCase) ? traditional : simplified;
+        null => UiText("Update service is starting.", "更新服务正在启动。", "更新服務正在啟動。"),
+        "not-checked" => UiText("Not checked yet; latest version unknown.", "尚未检查，最新版本未知。", "尚未檢查，最新版本未知。"),
+        "no-update" => UiText("Up to date.", "已是最新版本。", "已是最新版本。") + (result.Version == null ? "" : " " + result.Version),
+        "update-available" => UiText("New version available: ", "有新版本：", "有新版本：") + result.Version,
+        "installed" or "rolled-back" => UiText("Installed; restart Emby Server to apply.", "已安装，重启 Emby Server 后生效。", "已安裝，重新啟動 Emby Server 後生效。"),
+        "no-package" => UiText("The release feed has no package yet.", "发行源中还没有安装包。", "發行源中還沒有安裝包。"),
+        "unavailable" => UiText("No release feed configured.", "没有配置发行源。", "沒有設定發行源。"),
+        "cancelled" => UiText("Cancelled.", "已取消。", "已取消。"),
+        _ => UiText("Failed: ", "失败：", "失敗：") + result.Detail
+    };
+    private static string SuppressionStatusText()
+    {
+        var detail = PluginUpdateSuppression.Detail;
+        if (detail.StartsWith("Disabled", StringComparison.Ordinal)) return UiText("Off.", "未启用。", "未啟用。");
+        if (detail.StartsWith("Active", StringComparison.Ordinal)) return UiText("Active for scheduled plugin updates.", "已对计划任务中的插件自动更新生效。", "已對排程工作中的外掛自動更新生效。");
+        if (detail.StartsWith("Armed", StringComparison.Ordinal)) return UiText("Ready; takes effect at the next scheduled update check.", "已就绪，下次计划更新检查时生效。", "已就緒，下次排程更新檢查時生效。");
+        return UiText("Not active: compatibility check failed; Emby's native behavior is kept.", "未生效：兼容性检查未通过，保持 Emby 原生行为。", "未生效：相容性檢查未通過，保持 Emby 原生行為。");
     }
     private static void FillUserCatalogs(EditableOptionsBase model, List<EditorSelectOption> users)
     {
@@ -400,8 +403,19 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
     }
     private async Task<IPluginUIView?> RunDashboardCommand(OptionsView<DashboardOptions> view, string command, CancellationToken token)
     {
-        if (command == "ConfigureMemory") return new MemoryDialogView(view, DashboardStore);
+        if (command == DashboardOverview.ConfigureMemory) return new MemoryDialogView(view, DashboardStore);
         if (command == "RefreshActivity") return view.Refreshed("");
+        if (command == DashboardOverview.CancelScheduledTasks)
+        {
+            var cancelled = (Activity ?? throw new InvalidOperationException("Activity service is not initialized.")).CancelRunningTasks(view.User);
+            return view.Refreshed(UiText($"Cancellation requested for {cancelled} task(s).", $"已请求取消 {cancelled} 个任务。", $"已要求取消 {cancelled} 個工作。"));
+        }
+        if (command == DashboardOverview.CancelCatchup)
+        {
+            if (view.User?.Policy?.IsAdministrator != true) throw new System.Security.SecurityException("Administrator access required.");
+            var cleared = MediaCatchup?.CancelPending() ?? 0;
+            return view.Refreshed(UiText($"Cleared {cleared} catch-up item(s).", $"已清空 {cleared} 个追更项目。", $"已清空 {cleared} 個追更項目。"));
+        }
         if (DashboardActivity.IsActivityCommand(command))
         {
             try { return view.Refreshed(await (Activity ?? throw new InvalidOperationException("Activity service is not initialized.")).RunAsync(command, view.User, token).ConfigureAwait(false)); }
@@ -410,20 +424,22 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
         }
         if (command is not ("RebuildSearchIndex" or "CancelSearchRebuild")) return null;
         var search = SearchCoordinator ?? throw new InvalidOperationException("Search service is not initialized.");
-        if (command == "CancelSearchRebuild") { search.CancelRebuild(); return view.Refreshed("Index rebuild cancellation requested."); }
+        if (command == DashboardOverview.CancelIndexRebuild) { search.CancelRebuild(); return view.Refreshed(UiText("Index rebuild cancellation requested.", "已请求取消重建索引。", "已要求取消重建索引。")); }
         var model = (DashboardOptions)view.ContentData;
-        var row = model.SystemInfoItemList.Last(i => i.Button1?.CommandId == "RebuildSearchIndex");
+        var row = model.SystemInfoItemList.Last(i => i.Button1?.CommandId == DashboardOverview.RebuildIndex);
+        row.Button1.IsEnabled = false;
+        row.Button2 = new Emby.Web.GenericEdit.Elements.ButtonItem { Caption = UiText("Cancel", "取消", "取消"), Icon = Emby.Web.GenericEdit.Elements.IconNames.cancel, CommandId = DashboardOverview.CancelIndexRebuild, IsEnabled = true, IsVisible = true };
         try
         {
             await search.RebuildAsync(new InlineProgress(value =>
             {
                 row.HasPercentage = true; row.PercentComplete = (int)Math.Clamp(value, 0, 100);
-                row.SecondaryText = $"Indexing {value:F1}%";
+                row.SecondaryText = Resources.Dashboard_Search_Index_Rebuilding;
                 try { view.NotifyChanged(); } catch (Exception error) { Logger.Warn("[StrmAssistantRebuild] Index UI progress: {0}", error.Message); }
             }), token).ConfigureAwait(false);
-            return view.Refreshed($"Rebuilt {search.Count} search candidate records. {search.Status}");
+            return view.Refreshed(UiText($"Rebuilt {search.Count} search records.", $"已重建 {search.Count} 条搜索记录。", $"已重建 {search.Count} 筆搜尋記錄。"));
         }
-        catch (OperationCanceledException) { return view.Refreshed("Index rebuild cancelled; native search remains active."); }
+        catch (OperationCanceledException) { return view.Refreshed(UiText("Index rebuild cancelled; native search remains active.", "已取消重建索引，原生搜索仍可用。", "已取消重建索引，原生搜尋仍可用。")); }
         catch (Exception error) { return view.Refreshed("Index rebuild failed: " + error.Message); }
     }
     private sealed class InlineProgress : IProgress<double>
@@ -443,8 +459,8 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
             return options.NetworkOptions.ProxyServerStatus.StatusText;
         }
         var update = PluginUpdateService ?? throw new InvalidOperationException("Update service not initialized.");
-        if (command == "CheckPluginUpdate") return (await update.CheckAsync(token).ConfigureAwait(false)).Detail;
-        if (command == "UpdatePlugin") return (await update.UpdateAsync(new Progress<double>(p => Logger.Info("[StrmAssistantRebuild] Update progress: {0:F1}%", p)), token).ConfigureAwait(false)).Detail;
+        if (command == "CheckPluginUpdate") return UpdateStatusText(await update.CheckAsync(token).ConfigureAwait(false));
+        if (command == "UpdatePlugin") return UpdateStatusText(await update.UpdateAsync(new Progress<double>(p => Logger.Info("[StrmAssistantRebuild] Update progress: {0:F1}%", p)), token).ConfigureAwait(false));
         return "Unknown operation.";
     }
     private async Task<string> RunExperienceCommand(ExperienceEnhanceOptions options, string command, CancellationToken token)
@@ -502,8 +518,8 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
         var options = ConfigurationStore.GetOptions();
         var priorCheck = options.NetworkOptions.LastProxyCheckSucceeded;
         NetworkService?.Configure(options.NetworkOptions);
-        LocalDiscoveryControl.Configure(host.ApplicationVersion, options.NetworkOptions.LocalDiscoveryUrl, Logger);
-        NativeHttpRouting.Configure(host.ApplicationVersion, nativeHttpClient, options.NetworkOptions, out var nativeDetail);
+        PatchHealth.Record("LocalDiscovery", LocalDiscoveryControl.Configure(host.ApplicationVersion, options.NetworkOptions.LocalDiscoveryUrl, Logger));
+        PatchHealth.Record("NativeHttpRouting", NativeHttpRouting.Configure(host.ApplicationVersion, nativeHttpClient, options.NetworkOptions, out var nativeDetail));
         Logger.Info("[StrmAssistantRebuild] {0}", nativeDetail);
         if (NetworkService != null) { NetworkService.NativeRoutingDetail = nativeDetail; NetworkService.DiscoveryDetail = LocalDiscoveryControl.Detail; }
         // FileSaved runs after persistence and outside its lock. A changed endpoint invalidates the persisted check too.
@@ -525,14 +541,14 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
     private void ConfigureNativeMetadata()
     {
         var options = MetadataStore.GetOptions();
-        Provider.NativeSeasonCastControl.Configure(host.ApplicationVersion, host.Plugins, options.EnhanceMovieDbPerson, out var seasonCast, options.EnableMovieDbEpisodeGroupExtendedInfo);
+        PatchHealth.Record("NativeSeasonCast", Provider.NativeSeasonCastControl.Configure(host.ApplicationVersion, host.Plugins, options.EnhanceMovieDbPerson, out var seasonCast, options.EnableMovieDbEpisodeGroupExtendedInfo));
         Logger.Info("[StrmAssistantRebuild] {0}", seasonCast);
-        PersonDetailRefreshControl.Configure(host.ApplicationVersion, options.EnhanceMovieDbPerson, out var personDetail);
+        PatchHealth.Record("PersonDetailRefresh", PersonDetailRefreshControl.Configure(host.ApplicationVersion, options.EnhanceMovieDbPerson, out var personDetail));
         Logger.Info("[StrmAssistantRebuild] {0}", personDetail);
-        Provider.NativeMovieDbRouting.Configure(host.ApplicationVersion, host.Plugins, options, out var routing);
-        Provider.NativeMovieDbCache.Configure(host.ApplicationVersion, host.Plugins, options, Paths,
-            Path.Combine(Path.GetDirectoryName(MetadataStore.OptionsFilePath)!, "metadata-cache"), out var cache);
-        Provider.NativePosterOrdering.Configure(host.ApplicationVersion, providers, options.PreferOriginalPoster, out var poster, host.Plugins);
+        PatchHealth.Record("NativeMovieDbRouting", Provider.NativeMovieDbRouting.Configure(host.ApplicationVersion, host.Plugins, options, out var routing));
+        PatchHealth.Record("NativeMovieDbCache", Provider.NativeMovieDbCache.Configure(host.ApplicationVersion, host.Plugins, options, Paths,
+            Path.Combine(Path.GetDirectoryName(MetadataStore.OptionsFilePath)!, "metadata-cache"), out var cache));
+        PatchHealth.Record("NativePosterOrdering", Provider.NativePosterOrdering.Configure(host.ApplicationVersion, providers, options.PreferOriginalPoster, out var poster, host.Plugins));
         Logger.Info("[StrmAssistantRebuild] {0}", routing);
         Logger.Info("[StrmAssistantRebuild] {0}", cache);
         Logger.Info("[StrmAssistantRebuild] {0}", poster);
@@ -540,8 +556,8 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
     }
     private void ConfigureItemsQueryExtensions()
     {
-        SeasonCollectionQuery.Configure(host.ApplicationVersion, ExperienceStore.GetOptions().UIFunctionOptions.ShowCollectionsFromSeasons,
-            MetadataStore.GetOptions().EnableDoubanAssistScraping, out var detail);
+        PatchHealth.Record("SeasonCollections", SeasonCollectionQuery.Configure(host.ApplicationVersion, ExperienceStore.GetOptions().UIFunctionOptions.ShowCollectionsFromSeasons,
+            MetadataStore.GetOptions().EnableDoubanAssistScraping, out var detail));
         Logger.Info("[StrmAssistantRebuild] {0}", detail);
     }
     private void ConfigureUserExperience()
@@ -549,21 +565,21 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
         var options = ExperienceStore.GetOptions();
         UserExperienceService?.Configure(options, host.ApplicationVersion);
         UserPreferenceService?.Configure(options.UIFunctionOptions);
-        PluginUpdateSuppression.Configure(host.ApplicationVersion, options.SuppressPluginUpdates, host.Plugins, Logger);
-        NativeFolderGrouping.Configure(host.ApplicationVersion, options.FolderVideoGroupingLimit, Logger);
-        BoxsetAutoCreationControl.Configure(host.ApplicationVersion, options.UIFunctionOptions.NoBoxsetsAutoCreation, out var boxsets);
+        PatchHealth.Record("PluginUpdateSuppression", PluginUpdateSuppression.Configure(host.ApplicationVersion, options.SuppressPluginUpdates, host.Plugins, Logger));
+        PatchHealth.Record("NativeFolderGrouping", NativeFolderGrouping.Configure(host.ApplicationVersion, options.FolderVideoGroupingLimit, Logger));
+        PatchHealth.Record("BoxsetAutoCreation", BoxsetAutoCreationControl.Configure(host.ApplicationVersion, options.UIFunctionOptions.NoBoxsetsAutoCreation, out var boxsets));
         Logger.Info("[StrmAssistantRebuild] {0}", boxsets);
         ConfigureItemsQueryExtensions();
-        BoxsetUserViews.Configure(host.ApplicationVersion, options.UIFunctionOptions.NoBoxsetsAutoCreation, out var boxsetViews);
+        PatchHealth.Record("BoxsetUserViews", BoxsetUserViews.Configure(host.ApplicationVersion, options.UIFunctionOptions.NoBoxsetsAutoCreation, out var boxsetViews));
         Logger.Info("[StrmAssistantRebuild] {0}", boxsetViews);
-        DisplayOrderingControl.Configure(host.ApplicationVersion, options.UIFunctionOptions.OptimizeMediaItemOrder, options.UIFunctionOptions.OptimizeItemOrderPreferences, out var ordering);
+        PatchHealth.Record("DisplayOrdering", DisplayOrderingControl.Configure(host.ApplicationVersion, options.UIFunctionOptions.OptimizeMediaItemOrder, options.UIFunctionOptions.OptimizeItemOrderPreferences, out var ordering));
         Logger.Info("[StrmAssistantRebuild] {0}", ordering);
-        NotificationEnhancement.Configure(host.ApplicationVersion, options.EnhanceNotificationSystem, users, libraries, Logger);
-        MetadataEditNotification.Configure(host.ApplicationVersion, options.EnhanceNotificationSystem, options.MetadataUpdateTrackedFields, libraries, notifications, Logger, userManager:users);
-        ImageEditNotification.Configure(host.ApplicationVersion, options.EnhanceNotificationSystem, libraries, notifications, Logger, userManager:users);
-        SubtitleSearchOptimization.Configure(host.ApplicationVersion, options.OptimizeSubtitle, host.Plugins, libraries, Logger);
-        Provider.MissingEpisodeGroupControl.Configure(host.ApplicationVersion, host.Plugins, options.UIFunctionOptions.EnhanceMissingEpisodes,
-            () => MetadataStore.GetOptions(), () => EpisodeGroupService, Logger, out var missingEpisodes);
+        PatchHealth.Record("NotificationEnhancement", NotificationEnhancement.Configure(host.ApplicationVersion, options.EnhanceNotificationSystem, users, libraries, Logger));
+        PatchHealth.Record("MetadataEditNotification", MetadataEditNotification.Configure(host.ApplicationVersion, options.EnhanceNotificationSystem, options.MetadataUpdateTrackedFields, libraries, notifications, Logger, userManager:users));
+        PatchHealth.Record("ImageEditNotification", ImageEditNotification.Configure(host.ApplicationVersion, options.EnhanceNotificationSystem, libraries, notifications, Logger, userManager:users));
+        PatchHealth.Record("SubtitleSearchOptimization", SubtitleSearchOptimization.Configure(host.ApplicationVersion, options.OptimizeSubtitle, host.Plugins, libraries, Logger));
+        PatchHealth.Record("MissingEpisodeGroup", Provider.MissingEpisodeGroupControl.Configure(host.ApplicationVersion, host.Plugins, options.UIFunctionOptions.EnhanceMissingEpisodes,
+            () => MetadataStore.GetOptions(), () => EpisodeGroupService, Logger, out var missingEpisodes));
         Logger.Info("[StrmAssistantRebuild] {0}", missingEpisodes);
     }
     public void RefreshWebAssets()
@@ -571,11 +587,11 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
         var media = MediaStore.GetOptions();
         try
         {
-            var applied = StrmThumbnailCompatibility.Configure(host.ApplicationVersion, media.EnableImageCapture, out var detail);
+            var applied = PatchHealth.Record("StrmThumbnail", StrmThumbnailCompatibility.Configure(host.ApplicationVersion, media.EnableImageCapture, out var detail));
             if (applied) Logger.Info("[StrmAssistantRebuild] {0}", detail);
             else Logger.Warn("[StrmAssistantRebuild] {0}", detail);
         }
-        catch (Exception ex) { Logger.Warn("[StrmAssistantRebuild] STRM BIF compatibility inactive: {0}", ex.Message); }
+        catch (Exception ex) { PatchHealth.Record("StrmThumbnail", false); Logger.Warn("[StrmAssistantRebuild] STRM BIF compatibility inactive: {0}", ex.Message); }
         try
         {
             var supported = ExclusiveMediaControl.ValidateFeatures(media.ExclusiveControlFeatures, out _);
@@ -587,8 +603,8 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
             ExclusiveSaverControl.Configure(host.ApplicationVersion, media.ExclusiveExtract, alternativeSelection ? alternativeSaverFeatures :
                 ExclusiveMediaControl.TryGetNoPersistIntegrationSelection(media.ExclusiveControlFeatures, out var noPersistSaverFeatures) ? noPersistSaverFeatures : media.ExclusiveControlFeatures, out var saverDetail);
             Logger.Info("[StrmAssistantRebuild] {0}", saverDetail);
-            var applied = ExclusiveMediaControl.ConfigureWithAlternativeConsumer(host.ApplicationVersion, media, out var detail,
-                alternativeConsumerReady: MediaCatchup?.IsAlternativeConsumerReady == true && ExclusiveSaverControl.IsEnabled);
+            var applied = PatchHealth.Record("ExclusiveMediaControl", ExclusiveMediaControl.ConfigureWithAlternativeConsumer(host.ApplicationVersion, media, out var detail,
+                alternativeConsumerReady: MediaCatchup?.IsAlternativeConsumerReady == true && ExclusiveSaverControl.IsEnabled));
             if (!applied) { ExclusiveSaverControl.Disable(); ExclusiveRemoteFetcherControl.Disable(); }
             ExclusiveSaverControl.ConfigureNativeRestore(applied && media.ExclusiveExtract &&
                 !ExclusiveMediaControl.TryGetNoPersistIntegrationSelection(media.ExclusiveControlFeatures, out _) &&
@@ -610,6 +626,7 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
         {
             NativeChangedProbeControl.Disable();
             ExclusiveMediaControl.Disable(); ExclusiveSaverControl.Disable(); ExclusiveRemoteFetcherControl.Disable();
+            PatchHealth.Record("ExclusiveMediaControl", !media.ExclusiveExtract);
             Logger.Warn("[StrmAssistantRebuild] Exclusive control inactive: {0}", ex.Message);
         }
         MediaCatchup?.Configure(); // Consumer readiness -> gate configuration -> queue activation, including startup.
