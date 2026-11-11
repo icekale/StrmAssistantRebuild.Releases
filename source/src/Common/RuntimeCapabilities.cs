@@ -145,6 +145,8 @@ public sealed class RuntimeCapabilities
         Set("Activation.NativeHttpRouting", Good("Host") && NativeHttpRouting.IsEnabled, NativeHttpRouting.Detail + " NewHandlers=" + NativeHttpRouting.AppliedNewHandlerCount);
         Set("Activation.NativeMovieDbRouting", Good("Host") && NativeMovieDbRouting.IsEnabled, NativeMovieDbRouting.Detail);
         Set("Activation.NativeMovieDbCache", Good("Host") && NativeMovieDbCache.IsEnabled, NativeMovieDbCache.Detail);
+        Set("Activation.NativeImageCache", Good("Host") && Provider.NativeImageCache.IsEnabled, Provider.NativeImageCache.Detail +
+            " Restored=" + Provider.NativeImageCache.Restored + "; remote skipped=" + Provider.NativeImageCache.SkippedRemote + "; written=" + Provider.NativeImageCache.Written + ".");
         Set("Activation.NativeSeasonCast", Good("Host") && NativeSeasonCastControl.IsEnabled, NativeSeasonCastControl.Detail);
         Set("Activation.PersonDetailRefresh", Good("Host") && PersonDetailRefreshControl.IsEnabled, PersonDetailRefreshControl.Detail);
         Set("Activation.NativePosterOrdering", Good("Host") && NativePosterOrdering.IsEnabled, NativePosterOrdering.Detail);
@@ -163,7 +165,11 @@ public sealed class RuntimeCapabilities
         Set("Activation.ImageEditNotification", Good("Host") && ImageEditNotification.IsEnabled, ImageEditNotification.Detail);
         Set("Activation.MissingEpisodeGroup", Good("Host") && Provider.MissingEpisodeGroupControl.IsEnabled,
             Provider.MissingEpisodeGroupControl.Detail + " Replaced=" + Provider.MissingEpisodeGroupControl.ReplacedResults);
-        Set("Activation.PerfectSubtitle", Good("Host") && SubtitleSearchOptimization.IsEnabled, SubtitleSearchOptimization.Detail);
+        Set("Activation.DoubanChannel", Good("Host") && Provider.DoubanChannelService.Current?.Enabled == true && Provider.NativeChannelItemRefresh.IsEnabled,
+            "Channel '" + Provider.DoubanChannel.ChannelName + "' service=" + (Provider.DoubanChannelService.Current != null) + "; enabled=" + (Provider.DoubanChannelService.Current?.Enabled == true) +
+            "; cachedLists=" + (Provider.DoubanChannelService.Current?.CachedCollections ?? 0) + "; refresh: " + Provider.NativeChannelItemRefresh.Detail + " Skipped=" + Provider.NativeChannelItemRefresh.Skipped +
+            "; user views: hidden=" + (BoxsetUserViews.HiddenChannel ?? "none") + ".");
+        Set("Activation.PerfectSubtitle",Good("Host") && SubtitleSearchOptimization.IsEnabled, SubtitleSearchOptimization.Detail);
         Set("Backend.FavoriteNotifications", services.Favorites != null, "ItemAdded favorite update worker; opt-in rebuild event, current user visibility and favorites. Pending=" + (services.Favorites?.PendingCount ?? 0) + "; completed=" + (services.Favorites?.CompletedItems ?? 0) + "; emitted=" + (services.Favorites?.EmittedRequests ?? 0) + "; rejected=" + (services.Favorites?.RejectedEvents ?? 0) + ". PUK/user budgets and native notification destination rules apply.");
         Set("Activation.ExclusiveRemoteFetcher", Good("Host") && ExclusiveRemoteFetcherControl.IsEnabled, ExclusiveRemoteFetcherControl.Detail);
         Set("Activation.ExtractAlternative", Good("Host") && services.MediaCatchup?.IsAlternativeExtractActive == true,
@@ -185,7 +191,7 @@ public sealed class RuntimeCapabilities
         Set("Media.IsModSupported", false,
             "Incomplete controlled group: ExclusiveControlFeatures has seven unimplemented non-default branches; NoPersistIntegration opts out of the implemented native-success cache integration (restore and missing-cache export) while preserving explicit media APIs and native media/date writes; combinations with ExtractAlternative remain outside this opt-out subset; ExtractAlternative alone or combined once with NoNfoSaverOptimization and/or BlockRemoteFetcher supports the bounded stop-triggered local STRM Movie subset under the corresponding consumer-health and native-registration checks, not other combinations or full original scheduling; BlockRemoteFetcher covers Series/Season/MusicAlbum/BoxSet and bounded remote-metadata-only file Movie/Episode/Audio: ordinary automatic refreshes for both existing and first-refresh-marked persisted items after matching image eligibility capture, remote-only providers during FullRefresh metadata plus ValidationOnly images with that same witnessed scope, or public enumeration with genuinely no current scope and healthy shared boundaries. Missing typed capture inside a refresh, manual/owned/expired scopes, dual pre-refresh providers in the added full mode and other special refreshes remain native; media remote-image, file-change invalidation/restoration and broader ownership/CatchAll behavior remain incomplete. Typed-refresh NoNfo saver control is independent; HDR/DV/3D and full ISO/disc behavior absent. CustomEncoderPath now handles ordinary SDR capture/BIF/chapter frames without changing host encoder settings; remaining image-position/postprocess/default exclusive branches are independent. " + entries["Backend.Media"].Detail);
         Set("MetadataBuild.IsModSupported", false,
-            "MetadataCacheMode/RootFolder cover Douban and pinned native Movie/Series/Season/Episode TMDB typed-detail JSON subsets; reconstructed disk layout, limited retention/quota and optional image-type caching remain incomplete; external-root semantics restricted. Douban=" + Present(services.Douban));
+            "MetadataCacheMode/RootFolder cover Douban and pinned native Movie/Series/Season/Episode TMDB typed-detail JSON subsets; M150 adds TheMovieDb Movie/Series/Season/BoxSet image restore/write with optional types (reconstructed layout); original disk layout and limited retention/quota remain incomplete; external-root semantics restricted. Douban=" + Present(services.Douban));
         Set("Intro.IsModSupported", false,
             "Native host-wide STRM eligibility and the full marker-scope contract remain incomplete; explicit and ordinary plugin tasks support the bounded local-STRM subset. ParallelMarkerComputation now controls season concurrency for the ordinary incremental path without bypassing shared quotas. Header-authenticated remote inputs, live streams and discs remain outside this subset; protected query URLs and plain headerless HTTP(S) are checked separately. Verified playback marker changes send an independent native notification; Session context and 500ms OSD use exact live session matching; full clients and other origins remain incomplete. Physical native fingerprint support: " + fingerprint);
         Set("Experience.IsModSupported", false,
@@ -241,7 +247,7 @@ public sealed class RuntimeCapabilities
             "Default exclusive gate and implemented feature selections; unimplemented ExclusiveControlFeatures items are disabled in the list unless already selected.",
             "ExclusiveExtract", "ExclusiveControlFeatures");
         Fields("Media.CustomTools", media, "Custom ffprobe and ordinary SDR custom encoder consumers; HDR/DV/3D/disc conversion still excluded.", "CustomProbePath", "CustomEncoderPath");
-        Fields("MetadataBuild.Cache", host && services.Douban != null, "Douban and pinned TMDB typed-detail JSON caches; image-type caching and original disk layout incomplete.",
+        Fields("MetadataBuild.Cache", host && services.Douban != null, "Douban and pinned TMDB typed-detail JSON caches; TheMovieDb image cache with optional types (M150, reconstructed layout); original disk layout incomplete.",
             "MetadataCacheMode", "MetadataCacheRootFolder");
         Fields("Intro.Unlock", entries["Platform.Fingerprint"].Supported, "Bounded local-STRM/plugin task subset and season concurrency; host-wide eligibility incomplete.",
             "UnlockIntroSkip", "ParallelMarkerComputation", "MarkerEnabledLibraryScope");

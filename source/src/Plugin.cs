@@ -172,6 +172,8 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
             });
             DoubanMetadataService = new Provider.DoubanMetadataService(libraryManager, providerManager, OutboundHttp, Paths, Path.Combine(folder, "douban"), () => MetadataStore.GetOptions(), Logger, fileSystem);
             MetadataLanguageService = new Provider.MetadataLanguageService(libraryManager, providerManager, () => new DirectoryService(Logger, fileSystem), () => MetadataStore.GetOptions(), OutboundHttp, Logger, Paths, Path.Combine(folder, "metadata-providers"));
+            Provider.DoubanChannelService.Current = new Provider.DoubanChannelService(new Provider.DoubanFrodoClient(OutboundHttp),
+                Path.Combine(folder, "douban-channel-images"), () => ExperienceStore.GetOptions().EnableDoubanChannel, Logger);
             EpisodeGroupService = new Provider.EpisodeGroupService(libraryManager, MetadataLanguageService, () => MetadataStore.GetOptions(), OutboundHttp, Paths, Path.Combine(folder, "episode-groups"), Logger);
             NfoActorService = new Provider.NfoActorService(libraryManager, () => MetadataStore.GetOptions(), Logger);
             ConfigureNativeMetadata();
@@ -548,6 +550,9 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
         PatchHealth.Record("NativeMovieDbRouting", Provider.NativeMovieDbRouting.Configure(host.ApplicationVersion, host.Plugins, options, out var routing));
         PatchHealth.Record("NativeMovieDbCache", Provider.NativeMovieDbCache.Configure(host.ApplicationVersion, host.Plugins, options, Paths,
             Path.Combine(Path.GetDirectoryName(MetadataStore.OptionsFilePath)!, "metadata-cache"), out var cache));
+        PatchHealth.Record("NativeImageCache", Provider.NativeImageCache.Configure(host.ApplicationVersion, options, Paths,
+            Path.Combine(Path.GetDirectoryName(MetadataStore.OptionsFilePath)!, "metadata-cache"), out var imageCache));
+        Logger.Info("[StrmAssistantRebuild] {0}", imageCache);
         PatchHealth.Record("NativePosterOrdering", Provider.NativePosterOrdering.Configure(host.ApplicationVersion, providers, options.PreferOriginalPoster, out var poster, host.Plugins));
         Logger.Info("[StrmAssistantRebuild] {0}", routing);
         Logger.Info("[StrmAssistantRebuild] {0}", cache);
@@ -560,6 +565,7 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
             MetadataStore.GetOptions().EnableDoubanAssistScraping, out var detail));
         Logger.Info("[StrmAssistantRebuild] {0}", detail);
     }
+    private bool? lastDoubanChannel;
     private void ConfigureUserExperience()
     {
         var options = ExperienceStore.GetOptions();
@@ -570,8 +576,14 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
         PatchHealth.Record("BoxsetAutoCreation", BoxsetAutoCreationControl.Configure(host.ApplicationVersion, options.UIFunctionOptions.NoBoxsetsAutoCreation, out var boxsets));
         Logger.Info("[StrmAssistantRebuild] {0}", boxsets);
         ConfigureItemsQueryExtensions();
-        PatchHealth.Record("BoxsetUserViews", BoxsetUserViews.Configure(host.ApplicationVersion, options.UIFunctionOptions.NoBoxsetsAutoCreation, out var boxsetViews));
+        PatchHealth.Record("BoxsetUserViews", BoxsetUserViews.Configure(host.ApplicationVersion, options.UIFunctionOptions.NoBoxsetsAutoCreation,
+            options.EnableDoubanChannel ? null : Provider.DoubanChannel.ChannelName, out var boxsetViews));
         Logger.Info("[StrmAssistantRebuild] {0}", boxsetViews);
+        PatchHealth.Record("NativeChannelItemRefresh", Provider.NativeChannelItemRefresh.Configure(host.ApplicationVersion, options.EnableDoubanChannel, out var doubanChannel));
+        Logger.Info("[StrmAssistantRebuild] {0}", doubanChannel);
+        // Original: toggling EnableDoubanChannel raises ContentChanged so Emby re-lists (fills or clears) the channel.
+        if (lastDoubanChannel != null && lastDoubanChannel != options.EnableDoubanChannel) Provider.DoubanChannel.Current?.NotifyContentChanged();
+        lastDoubanChannel = options.EnableDoubanChannel;
         PatchHealth.Record("DisplayOrdering", DisplayOrderingControl.Configure(host.ApplicationVersion, options.UIFunctionOptions.OptimizeMediaItemOrder, options.UIFunctionOptions.OptimizeItemOrderPreferences, out var ordering));
         Logger.Info("[StrmAssistantRebuild] {0}", ordering);
         PatchHealth.Record("NotificationEnhancement", NotificationEnhancement.Configure(host.ApplicationVersion, options.EnhanceNotificationSystem, users, libraries, Logger));
@@ -699,10 +711,13 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
         NativeHttpRouting.Disable();
         Provider.NativeMovieDbRouting.Disable();
         Provider.NativeMovieDbCache.Disable();
+        Provider.NativeImageCache.Disable();
         Provider.NativeSeasonCastControl.Disable();
         PersonDetailRefreshControl.Disable();
         Provider.NativePosterOrdering.Disable();
         Provider.MissingEpisodeGroupControl.Disable();
+        Provider.NativeChannelItemRefresh.Disable();
+        Provider.DoubanChannelService.Current = null;
         ScopeSelection.ConfigureUsers(null);
         SearchCoordinator?.Dispose();
         UserExperienceService?.Dispose();

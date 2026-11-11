@@ -20,4 +20,5 @@
 
 - 这是 StrmAssistant 的重建版，按 [GPL-3.0](LICENSE) 发布。插件 ID 独立，**不能**替代或升级原版 StrmAssistant / StrmAssistantPro，也不会读取原版的发行源。
 - 本插件**不是**原版 3.0.0.57 的完整等价实现，部分功能缺失或行为不同。
+- "豆瓣推荐"频道（默认关闭）与原版一样，使用豆瓣 Android App 的接口参数访问豆瓣；豆瓣更换参数后频道会显示为空，不影响其他功能。
 - 第三方组件及其许可证见 [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md)。

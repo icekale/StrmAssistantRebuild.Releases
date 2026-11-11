@@ -8,7 +8,7 @@ using MediaBrowser.Model.Library;
 
 namespace StrmAssistantRebuild.Common;
 
-/// <summary>Remove collection-library inputs before native user-view exclusions, expansion, sorting and root pagination.</summary>
+/// <summary>Remove collection-library inputs (and, M149, the disabled Douban channel) before native user-view exclusions, expansion, sorting and root pagination.</summary>
 public static class BoxsetUserViews
 {
     private const string Owner = "StrmAssistantRebuild.BoxsetUserViews.4.10.2";
@@ -16,9 +16,14 @@ public static class BoxsetUserViews
     private static MethodInfo? installed;
     private static Harmony? patcher;
     private static int enabled;
+    private static bool hideBoxsets;
+    private static string? hiddenChannel;
     public static bool IsEnabled => Volatile.Read(ref enabled) != 0;
+    public static string? HiddenChannel => IsEnabled ? hiddenChannel : null;
     public static string Detail { get; private set; } = "Disabled; native user views unchanged.";
-    public static bool Configure(Version hostVersion, bool hide, out string detail)
+    public static bool Configure(Version hostVersion, bool hide, out string detail) => Configure(hostVersion, hide, null, out detail);
+    /// <summary>Original HideDoubanChannel: a named plugin channel is dropped from user views while its feature is off.</summary>
+    public static bool Configure(Version hostVersion, bool hide, string? hideChannel, out string detail)
     {
         lock (Gate)
         {
@@ -26,7 +31,8 @@ public static class BoxsetUserViews
             try
             {
                 Remove();
-                if (!hide) { detail = Detail = "Disabled; native user views restored."; return true; }
+                hideBoxsets = hide; hiddenChannel = string.IsNullOrEmpty(hideChannel) ? null : hideChannel;
+                if (!hide && hiddenChannel == null) { detail = Detail = "Disabled; native user views restored."; return true; }
                 var assembly = AppDomain.CurrentDomain.GetAssemblies().SingleOrDefault(a => a.GetName().Name == "Emby.Server.Implementations");
                 var method = assembly?.GetType("Emby.Server.Implementations.Library.UserViewManager")?.GetMethod("GetUserViews",
                     new[] { typeof(UserViewQuery), typeof(User), typeof(Folder[]), typeof(IDataContext), typeof(CancellationToken) });
@@ -37,7 +43,9 @@ public static class BoxsetUserViews
                 installed = method;
                 (patcher ??= new Harmony(Owner)).Patch(method, prefix: new HarmonyMethod(typeof(BoxsetUserViews).GetMethod(nameof(Before), BindingFlags.Static | BindingFlags.NonPublic)!));
                 Volatile.Write(ref enabled, 1);
-                detail = Detail = "Active; collection-library inputs hidden from native user views only; library administration, direct access and collection data unchanged.";
+                detail = Detail = "Active; " + string.Join("; ", new[] {
+                    hide ? "collection-library inputs hidden from native user views only; library administration, direct access and collection data unchanged" : null,
+                    hiddenChannel != null ? "disabled channel '" + hiddenChannel + "' hidden from user views" : null }.Where(x => x != null)) + ".";
                 return true;
             }
             catch (Exception error)
@@ -55,8 +63,13 @@ public static class BoxsetUserViews
         if (current == null || Harmony.GetPatchInfo(current)?.Owners.Any(x => x != Owner) == true)
         { Volatile.Write(ref enabled, 0); Detail = "Inactive: user-view ownership changed; native inputs retained."; return; }
         // Do not invent cancellation behavior: native body forwards the same token and decides where to observe it.
-        __2 = __2.Where(folder => folder is not CollectionFolder collection ||
-            !MemoryExtensions.Equals(collection.CollectionType, "boxsets".AsSpan(), StringComparison.OrdinalIgnoreCase)).ToArray();
+        var boxsets = hideBoxsets; var channel = hiddenChannel;
+        __2 = __2.Where(folder => folder switch
+        {
+            CollectionFolder collection => !boxsets || !MemoryExtensions.Equals(collection.CollectionType, "boxsets".AsSpan(), StringComparison.OrdinalIgnoreCase),
+            MediaBrowser.Controller.Channels.Channel plugin => channel == null || !string.Equals(plugin.Name, channel, StringComparison.Ordinal),
+            _ => true
+        }).ToArray();
     }
     internal static bool Verify(MethodInfo method)
     {
