@@ -87,13 +87,15 @@ public static class ExclusiveMediaControl
                 // Preserve owned operations only while all eight installed entrypoints remain exactly healthy.
                 if (enabled && hostVersion == ExpectedVersion && options?.ExclusiveExtract == true &&
                     ValidateFeatures(options.ExclusiveControlFeatures, out _) && HasExpectedPatches())
-                { detail = "Enabled: unchanged healthy extraction gate; existing owned scopes retained."; return true; }
+                { ExclusiveEligibility.Configure(options.ExclusiveControlFeatures, ExclusiveEligibility.PersistMode); detail = "Enabled: unchanged healthy extraction gate; existing owned scopes retained."; return true; }
                 enabled = false;
+                ExclusiveEligibility.Clear();
                 Interlocked.Increment(ref generation); // Revoke captured scopes; in-flight host Tasks are not canceled.
                 RemovePatches();
                 ArgumentNullException.ThrowIfNull(options);
                 if (!options.ExclusiveExtract) { detail = "Disabled; native media extraction restored."; return true; }
                 if (!ValidateFeatures(options.ExclusiveControlFeatures, out detail)) return false;
+                ExclusiveEligibility.Configure(options.ExclusiveControlFeatures, ExclusiveEligibility.PersistMode);
                 if (hostVersion != ExpectedVersion) { detail = "Exclusive gate inactive: host version differs from validated 4.10.2.0."; return false; }
                 var assembly = AppDomain.CurrentDomain.GetAssemblies().SingleOrDefault(a => a.GetName().Name == HostAssembly);
                 if (assembly is null) { detail = "Exclusive gate inactive: host media encoding assembly is not loaded."; return false; }
@@ -133,6 +135,7 @@ public static class ExclusiveMediaControl
         lock (Sync)
         {
             enabled = false; // Functional rollback precedes detour removal, including cleanup failures.
+            ExclusiveEligibility.Clear();
             Interlocked.Increment(ref generation);
             try { RemovePatches(); } catch { }
         }
@@ -203,14 +206,14 @@ public static class ExclusiveMediaControl
 
     internal static bool IsAlternativeOnly(string? features)
     {
-        var selected = (features ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var selected = ExclusiveEligibility.Strip(features).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         return selected.Length == 1 && string.Equals(selected[0], "ExtractAlternative", StringComparison.OrdinalIgnoreCase);
     }
 
     internal static bool TryGetAlternativeSelection(string? features, out string saverFeatures)
     {
         saverFeatures = "";
-        var selected = (features ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var selected = ExclusiveEligibility.Strip(features).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         var noNfo = selected.Count(name => string.Equals(name, "NoNfoSaverOptimization", StringComparison.OrdinalIgnoreCase));
         var remote = selected.Count(name => string.Equals(name, "BlockRemoteFetcher", StringComparison.OrdinalIgnoreCase));
         if (selected.Length is < 1 or > 3 ||
@@ -225,7 +228,7 @@ public static class ExclusiveMediaControl
     internal static bool TryGetNoPersistIntegrationSelection(string? features, out string saverFeatures)
     {
         saverFeatures = "";
-        var selected = (features ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var selected = ExclusiveEligibility.Strip(features).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (selected.Count(name => string.Equals(name, "NoPersistIntegration", StringComparison.OrdinalIgnoreCase)) != 1 ||
             !selected.All(name => string.Equals(name, "NoPersistIntegration", StringComparison.OrdinalIgnoreCase) ||
                 string.Equals(name, "NoNfoSaverOptimization", StringComparison.OrdinalIgnoreCase) || string.Equals(name, "BlockRemoteFetcher", StringComparison.OrdinalIgnoreCase))) return false;
@@ -236,23 +239,26 @@ public static class ExclusiveMediaControl
 
     internal static bool ValidateFeatures(string? features, out string detail)
     {
+        // M156/M159: eligibility features (CatchAllAllow/CatchAllAllowChapterImage/CatchAllBlock/UnconditionalBlock) combine with every supported selection.
+        if (!ExclusiveEligibility.ValidCombination(features, out detail)) return false;
+        features = ExclusiveEligibility.Strip(features);
         if (TryGetAlternativeSelection(features, out _))
         { detail = "ExtractAlternative with optional NoNfoSaverOptimization/BlockRemoteFetcher requires an active stop producer and bounded native public-refresh consumer; remote combinations also require a healthy remote owner and nonempty native image-provider inventory."; return true; }
         if (TryGetNoPersistIntegrationSelection(features, out _))
         { detail = "NoPersistIntegration disables automatic persistence/restore integration only; explicit media APIs and extraction gates remain active. Optional 7/9 consumers must be independently active; combinations with ExtractAlternative remain unsupported."; return true; }
-        var selected = (features ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var selected = features.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (selected.All(name => string.Equals(name, "NoNfoSaverOptimization", StringComparison.OrdinalIgnoreCase) || string.Equals(name, "BlockRemoteFetcher", StringComparison.OrdinalIgnoreCase)))
         { detail = selected.Length == 0 ? "Default exclusive gate." : "Selected bounded saver/Series-Season-MusicAlbum-BoxSet remote-fetcher consumers must be independently active."; return true; }
         var reasons = selected.Distinct(StringComparer.Ordinal).Select(name => name + ": " + (name switch
         {
-            "CatchAllAllow" => "not implemented; needs item/refresh/persistence eligibility, not unconditional pass-through",
-            "CatchAllAllowChapterImage" => "not implemented; also needs native chapter eligibility and extraction context",
-            "CatchAllBlock" => "not implemented; retains original conditional item/persistence exceptions",
-            "UnconditionalBlock" => "not implemented; distinct provider-pre-refresh branch, not an alias for CatchAllBlock",
+            "CatchAllAllow" => "implemented (M156)",
+            "CatchAllAllowChapterImage" => "implemented (M159)",
+            "CatchAllBlock" => "implemented (M156)",
+            "UnconditionalBlock" => "implemented (M156)",
             "BlockRemoteFetcher" => "implemented only for independently verified parented Series/Season/MusicAlbum/BoxSet provider eligibility", 
-            "ExtractOnFileChange" => "not implemented; requires observed file-change refresh context and queue integration",
-            "IgnoreFileChange" => "not implemented; requires file-change refresh context",
-            "IgnoreExtSubChange" => "not implemented; requires external-subtitle change context",
+            "ExtractOnFileChange" => "implemented (M157)",
+            "IgnoreFileChange" => "implemented (M157)",
+            "IgnoreExtSubChange" => "implemented (M157)",
             "NoPersistIntegration" => "bounded automatic native-success restore opt-out, not manual APIs; supported exactly once with optional NoNfoSaverOptimization/BlockRemoteFetcher only",
             "NoNfoSaverOptimization" => "implemented only with the independently verified typed-refresh saver consumer",
             "ExtractAlternative" => "supported with optional NoNfoSaverOptimization/BlockRemoteFetcher and an active bounded Movie/local-STRM stop consumer; remote combinations additionally require healthy remote ownership and native image-provider inventory",
@@ -309,13 +315,15 @@ public static class ExclusiveMediaControl
     private static bool ProbePrefix(object __instance, MediaInfoRequest request, CancellationToken cancellationToken, ref Task<MediaInfo> __result)
     {
         if (!ShouldBlock) return true;
-        if (NativeChangedProbeControl.TryConsume(__instance, request, cancellationToken)) return true;
+        if (NativeChangedProbeControl.TryConsume(__instance, request, cancellationToken))
+        { if (ExclusiveSaverControl.CurrentNativeRefresh?.FileChange is { } change) change.ProbeAllowed = true; return true; }
+        if (ExclusiveEligibility.AllowNativeProbe()) return true;
         __result = BlockedTask<MediaInfo>(cancellationToken); return false;
     }
     private static bool ImagePrefix(CancellationToken cancellationToken, ref Task<string> __result)
-    { if (!ShouldBlock) return true; __result = BlockedTask<string>(cancellationToken); return false; }
+    { if (!ShouldBlock || ExclusiveChapterImageControl.AllowExtraction() || ExclusiveEligibility.AllowNativeImage()) return true; __result = BlockedTask<string>(cancellationToken); return false; }
     private static bool ListPrefix(CancellationToken cancellationToken, ref Task<List<TimeSpan>> __result)
     { if (!ShouldBlock) return true; __result = BlockedTask<List<TimeSpan>>(cancellationToken); return false; }
     private static bool SeriesPrefix(CancellationToken cancellationToken, ref Task __result)
-    { if (!ShouldBlock) return true; __result = cancellationToken.IsCancellationRequested ? Task.FromCanceled(cancellationToken) : Task.FromException(Blocked()); return false; }
+    { if (!ShouldBlock || ExclusiveChapterImageControl.AllowExtraction()) return true; __result = cancellationToken.IsCancellationRequested ? Task.FromCanceled(cancellationToken) : Task.FromException(Blocked()); return false; }
 }

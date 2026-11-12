@@ -96,6 +96,28 @@ public sealed class MaintenanceService
         if (result.Failed > 0) throw new InvalidOperationException($"External-track scan completed with {result.Failed} failed items.");
     }
 
+    /// <summary>M157: original ExtTracksChanged (A----------.cs:88883): the set of local external subtitle/audio paths differs. Discovery only, no probing.</summary>
+    internal bool ExternalTracksChanged(BaseItem item)
+    {
+        if (!item.IsFileProtocol || string.IsNullOrWhiteSpace(item.Path)) return false;
+        var binding = resolvers.Value;
+        var options = library.GetLibraryOptions(item);
+        var naming = Invoke(binding.Naming, library, Array.Empty<object>())!;
+        var directory = new DirectoryService(logger, files);
+        bool LocalTrack(MediaStream stream) => stream.IsExternal && stream.Protocol == MediaProtocol.File && stream.Type is MediaStreamType.Subtitle or MediaStreamType.Audio;
+        var supported = new HashSet<MediaStreamType>();
+        var discovered = new HashSet<(MediaStreamType, string)>();
+        foreach (var (resolver, type) in new[] { (binding.Subtitle, MediaStreamType.Subtitle), (binding.Audio, MediaStreamType.Audio) })
+        {
+            if (!(bool)Invoke(binding.Supports, resolver, new object[] { item, options })!) continue;
+            supported.Add(type);
+            foreach (var stream in ((List<MediaStream>)Invoke(binding.Discover, resolver, new object[] { item, 0, directory, options, naming, true })!).Where(LocalTrack))
+                discovered.Add((stream.Type, stream.Path));
+        }
+        var current = repository.GetMediaStreams(new MediaStreamQuery { ItemId = item.InternalId }, CancellationToken.None)
+            .Where(s => LocalTrack(s) && supported.Contains(s.Type)).Select(s => (s.Type, s.Path)).ToHashSet();
+        return !current.SetEquals(discovered);
+    }
     internal async Task ScanExternalTracksAsync(BaseItem item, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();

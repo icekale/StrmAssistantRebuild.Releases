@@ -49,7 +49,7 @@ public static class NativeImageCache
     private static CancellationTokenSource remoteLifetime = new();
     private sealed class State
     {
-        public CacheMode Mode; public string Root = ""; public EmbyPathPolicy Paths = null!;
+        public CacheMode Mode; public string Root = ""; public string OriginalRoot = ""; public EmbyPathPolicy Paths = null!;
         public HashSet<ImageType> Optional = new(); public long MaxTotalBytes; public long TotalBytes;
         public bool Reads => Mode == CacheMode.PreferCacheThenOnline;
         public bool Writes => Mode is CacheMode.PreferCacheThenOnline or CacheMode.PreferOnlineWithCache;
@@ -99,7 +99,7 @@ public static class NativeImageCache
                 var root = build.MetadataCacheRootFolder?.Trim();
                 var folder = Path.Combine(string.IsNullOrWhiteSpace(root) ? defaultRoot : root, "tmdb", "images");
                 if (!Path.IsPathFullyQualified(folder)) throw new IOException("Cache root must be absolute.");
-                var state = new State { Mode = mode, Root = Path.GetFullPath(folder), Paths = paths, Optional = ParseOptional(build.MetadataCacheOptionalImageTypes), MaxTotalBytes = maxTotalBytes };
+                var state = new State { Mode = mode, Root = Path.GetFullPath(folder), OriginalRoot = Path.GetFullPath(string.IsNullOrWhiteSpace(root) ? defaultRoot : root), Paths = paths, Optional = ParseOptional(build.MetadataCacheOptionalImageTypes), MaxTotalBytes = maxTotalBytes };
                 state.TotalBytes = Directory.Exists(state.Root) ? new DirectoryInfo(state.Root).EnumerateFiles("*", SearchOption.AllDirectories).Take(500_000).Sum(f => f.Length) : 0;
                 installed = target;
                 (patcher ??= new Harmony(Owner)).Patch(target,
@@ -149,6 +149,41 @@ public static class NativeImageCache
         };
         string? SeasonSeries(Season season) { try { return Id(season.Series); } catch { return null; } }
     }
+    // M155: original image names (notes/decrypted/A----------/A----------.cs:115151-115520).
+    private static readonly Dictionary<ImageType, string> OriginalNames = new()
+    { [ImageType.Primary] = "poster", [ImageType.Logo] = "clearlogo", [ImageType.Thumb] = "landscape", [ImageType.Art] = "clearart",
+      [ImageType.Disc] = "discart", [ImageType.Backdrop] = "fanart", [ImageType.Banner] = "banner" };
+    private static long originalRestores;
+    public static long OriginalRestores => Interlocked.Read(ref originalRestores);
+    /// <summary>Original layout {root}/{override|cache}/{tmdb-movies2|tmdb-tv|tmdb-collections}/{tmdbId}/images/{name}; seasons use "season-N" in the series folder.</summary>
+    public static IEnumerable<(string Directory, string Stem)> OriginalCandidates(string originalRoot, BaseItem item, ImageType type)
+    {
+        static string? Id(BaseItem? owner) => owner?.GetProviderId(MetadataProviders.Tmdb) is { Length: > 0 and <= 10 } id && id.All(c => c is >= '0' and <= '9') && id[0] != '0' ? id : null;
+        (string Folder, string Id, string Stem)? entry = item switch
+        {
+            Movie when Id(item) is { } id && OriginalNames.TryGetValue(type, out var name) => ("tmdb-movies2", id, name),
+            Series when Id(item) is { } id && OriginalNames.TryGetValue(type, out var name) => ("tmdb-tv", id, name),
+            BoxSet when Id(item) is { } id && OriginalNames.TryGetValue(type, out var name) => ("tmdb-collections", id, name),
+            Season season when type == ImageType.Primary && season.IndexNumber is >= 0 and <= 10000 && SeriesId(season) is { } sid => ("tmdb-tv", sid, "season-" + season.IndexNumber.Value),
+            _ => null
+        };
+        if (entry == null) yield break;
+        foreach (var branch in new[] { "override", "cache" })
+            yield return (Path.Combine(originalRoot, branch, entry.Value.Folder, entry.Value.Id, "images"), entry.Value.Stem);
+        static string? SeriesId(Season season) { try { return Id(season.Series); } catch { return null; } }
+    }
+    internal static string? FindOriginal(string originalRoot, BaseItem item, ImageType type)
+    {
+        foreach (var (directory, stem) in OriginalCandidates(originalRoot, item, type))
+        {
+            if (!Directory.Exists(directory)) continue;
+            var file = Directory.EnumerateFiles(directory, stem + ".*")
+                .Where(f => Mime.ContainsKey(Path.GetExtension(f)) && string.Equals(Path.GetFileNameWithoutExtension(f), stem, StringComparison.OrdinalIgnoreCase) && new FileInfo(f) is { Length: > 0 and <= MaxFileBytes })
+                .OrderBy(f => f, StringComparer.Ordinal).FirstOrDefault();
+            if (file != null) return file;
+        }
+        return null;
+    }
     internal static string? Find(string folder, ImageType type)
     {
         if (!Directory.Exists(folder)) return null;
@@ -190,6 +225,8 @@ public static class NativeImageCache
                 {
                     if (downloadedImages.Contains(type) || !replaceAllImages && item.HasImage(type)) { satisfied.Add(type); continue; }
                     var file = Find(folder, type);
+                    var fromOriginal = false;
+                    if (file == null) { file = FindOriginal(state.OriginalRoot, item, type); fromOriginal = file != null; }
                     if (file == null) continue;
                     // Same as the original: a synchronous restore inside the prefix (Task.Run(...).Result).
                     var ok = Task.Run(async () =>
@@ -204,6 +241,7 @@ public static class NativeImageCache
                     MarkImageUpdate(result);
                     satisfied.Add(type); restoredNow.Add(type);
                     Interlocked.Increment(ref restored);
+                    if (fromOriginal) Interlocked.Increment(ref originalRestores);
                 }
             }
             if (state.Writes) __state = new WriteState(item, provider, folder, before, restoredNow.ToArray(), Order.Where(wanted.Contains).ToArray());

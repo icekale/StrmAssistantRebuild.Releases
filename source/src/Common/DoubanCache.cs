@@ -29,11 +29,35 @@ public sealed class DoubanCache
         if (!DoubanSubjectParser.IsSubjectId(id)) throw new ArgumentException("Invalid Douban subject id.");
         return paths.RequireWritablePath(Path.Combine(root, "douban", isOverride ? "override" : "cache", id + ".json"));
     }
+    /// <summary>M155: original plugin layout {root}/{cache|override}/{douban-movies|douban-tv}/{id}/{all|series}.json (frodo detail JSON).</summary>
+    public IEnumerable<string> OriginalPaths(string id, bool isOverride)
+    {
+        if (!DoubanSubjectParser.IsSubjectId(id)) throw new ArgumentException("Invalid Douban subject id.");
+        var branch = isOverride ? "override" : "cache";
+        yield return paths.RequireWritablePath(Path.Combine(root, branch, "douban-movies", id, "all.json"));
+        yield return paths.RequireWritablePath(Path.Combine(root, branch, "douban-tv", id, "series.json"));
+    }
     public async Task<DoubanSubject?> ReadAsync(string id, bool isOverride, CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
         var path = FilePath(id, isOverride);
-        if (!File.Exists(path) || new FileInfo(path).Length > MaxBytes) return null;
+        if (!File.Exists(path))
+        {
+            // Original files are the frodo detail JSON (same format as rebuild overrides) and never expired.
+            foreach (var original in OriginalPaths(id, isOverride))
+            {
+                if (!File.Exists(original) || new FileInfo(original).Length > MaxBytes) continue;
+                try
+                {
+                    await using var stream = new FileStream(original, FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete, 8192, true);
+                    var subject = DoubanSubjectParser.ParseDetailJson(Encoding.UTF8.GetString(await ReadBoundedAsync(stream, MaxBytes, token).ConfigureAwait(false)), id).Subject;
+                    if (subject != null) return subject;
+                }
+                catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or NotSupportedException) { }
+            }
+            return null;
+        }
+        if (new FileInfo(path).Length > MaxBytes) return null;
         try
         {
             await using var file = new FileStream(paths.RequireWritablePath(path), FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete, 8192, true);

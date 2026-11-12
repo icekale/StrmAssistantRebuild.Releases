@@ -61,7 +61,7 @@ public static class ExclusiveSaverControl
     {
         lock (Gate)
         {
-            var selected = (features ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var selected = ExclusiveEligibility.Strip(features).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             var supported = selected.All(x => string.Equals(x, NoNfo, StringComparison.OrdinalIgnoreCase) || string.Equals(x, "BlockRemoteFetcher", StringComparison.OrdinalIgnoreCase));
             var nextNoNfo = selected.Contains(NoNfo, StringComparer.OrdinalIgnoreCase);
             try
@@ -146,6 +146,7 @@ public static class ExclusiveSaverControl
             libraryOptions.TypeOptions?.Any(o => o != null && o.Type == item.GetType().Name && o.MetadataFetchers?.Any() == true) == true);
         // Explicit scopes keep their existing saver-only meaning. Only the actual public native entry
         // creates this envelope; neither metadata enumeration nor EnterRefresh can manufacture readiness.
+        if (nativeOrigin) { snapshot.Item = item; snapshot.Options = refresh; }
         if (nativeOrigin && RemoteContextEnabled && (item.GetType() == typeof(Movie) || item.GetType() == typeof(Episode) || item.GetType() == typeof(Audio)))
             try { snapshot.Remote = new RemoteRefresh(item, refresh, libraryOptions); }
             catch { /* An optional new consumer must never fault the existing saver/native refresh. */ }
@@ -153,7 +154,17 @@ public static class ExclusiveSaverControl
     }
 
     private sealed record RefreshContext(long ItemId, bool IsNew, bool Ordinary, bool HasFetchers)
-    { internal RemoteRefresh? Remote; internal Func<Task>? SuccessTail; }
+    { internal RemoteRefresh? Remote; internal Func<Task>? SuccessTail; internal BaseItem? Item; internal MetadataRefreshOptions? Options; internal ExclusiveFileChange.State? FileChange; }
+    /// <summary>M156: the innermost live native RefreshSingleItem envelope (item, typed options), for original eligibility rules.</summary>
+    internal static (BaseItem Item, MetadataRefreshOptions Options, bool IsNew, bool Ordinary, ExclusiveFileChange.State? FileChange)? CurrentNativeRefresh
+    {
+        get
+        {
+            for (var scope = LiveScope(); scope != null; scope = scope.Parent)
+                if (scope.Refresh is { Item: { } item, Options: { } options } r) return (item, options, r.IsNew, r.Ordinary, r.FileChange);
+            return null;
+        }
+    }
 
     private static Func<BaseItem, CancellationToken, Func<bool>, Task<bool>>? nativeRestore;
     private static Action<long, Exception>? restoreFailure;
@@ -409,6 +420,9 @@ public static class ExclusiveSaverControl
             var canRestore = Current.Value == null && !ExclusiveMediaControl.IsOwnedOperation;
             var canProbe = Current.Value == null && !ExclusiveMediaControl.HasRawOwnedScope;
             __state = EnterRefreshCore(item, options, libraryOptions, true);
+            try { if (canRestore && __state.Refresh != null) __state.Refresh.FileChange = ExclusiveFileChange.Begin(item, options, __state.Refresh.IsNew, __4); }
+            catch (OperationCanceledException) { throw; }
+            catch { /* Optional file-change handling never faults the native refresh. */ }
             try { if (canProbe) __state.NativeChangedState = NativeChangedProbeControl.Capture(__instance, item, options, __2, libraryOptions, __4); }
             catch { /* Optional probe capture leaves the global block in place. */ }
             try { if (canRestore) CaptureRestoreTail(__state, item, options, libraryOptions, __4); }
@@ -430,6 +444,7 @@ public static class ExclusiveSaverControl
         {
             var result = await task.ConfigureAwait(false); // Native fault/cancellation never enters the tail.
             if (scope.Refresh?.SuccessTail is { } tail) await tail().ConfigureAwait(false);
+            if (scope.Refresh is { FileChange: { } change, Item: { } changed }) await ExclusiveFileChange.Complete(changed, change, CancellationToken.None).ConfigureAwait(false);
             return result; // Deliberately awaited, unlike the original completion's discarded Task.
         }
         finally { scope.Dispose(); }
@@ -591,7 +606,9 @@ internal static class NativeChangedProbeControl
     { using var stream = File.OpenRead(assembly.Location); using var sha = SHA256.Create(); return assembly.GetName().Version == new Version(4, 10, 2, 0) && Convert.ToHexString(sha.ComputeHash(stream)) == hash; }
     private static bool Selected((bool Exclusive, string? Features, string? Persist) o)
     {
-        var selected = (o.Features ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        // IgnoreFileChange (0) turns the changed-file probe off, as in the original.
+        if ((o.Features ?? "").Split(',', StringSplitOptions.TrimEntries).Contains("IgnoreFileChange", StringComparer.OrdinalIgnoreCase)) return false;
+        var selected = ExclusiveEligibility.Strip(o.Features).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         return o.Exclusive && (selected.Length == 0 || selected.Length == 1 &&
             string.Equals(selected[0], "NoPersistIntegration", StringComparison.OrdinalIgnoreCase)) && o.Persist is "None" or "Default";
     }

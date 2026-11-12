@@ -29,7 +29,6 @@ public sealed class UserExperienceService : IDisposable
     private sealed record Work(long UserId, long ItemId, long Position, bool Completed, int Generation, TaskCompletionSource<bool>? Barrier = null);
     public Task Completion { get; }
     public long DroppedEventCount => Interlocked.Read(ref dropped);
-    public bool IsLibraryScopePlayProgressSupported => false;
 
     public UserExperienceService(ILibraryManager library, IUserDataManager data, IUserManager users,
         ISessionManager sessions, ILogger logger, Action<PlaybackStopEventArgs>? onPlaybackStop = null)
@@ -53,8 +52,7 @@ public sealed class UserExperienceService : IDisposable
             enabled = options.MarkPreviousEpisodesPlayed;
             threshold = Math.Clamp(options.MarkPreviousEpisodesPlayedThreshold, 5, 95);
         }
-        if (options.LibraryScopePlayProgress)
-            logger.Warn("[StrmAssistantRebuild] LibraryScopePlayProgress inactive: automatic library-wide migration, dynamic items and Resume/NextUp grouping remain incomplete. Recovery of explicitly enrolled journal records is separate and requires a persisted startup opt-in.");
+        // M153: LibraryScopePlayProgress is applied by LibraryScopePlayProgressControl (Plugin.ConfigureUserExperience).
         lock (gate)
             if (disposed == 0) UserExperienceGetterCompatibility.Configure(hostVersion, options, logger, library);
     }

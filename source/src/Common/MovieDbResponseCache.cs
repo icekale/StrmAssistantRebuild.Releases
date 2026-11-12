@@ -46,13 +46,38 @@ public sealed class MovieDbResponseCache
             throw new IOException("Invalid cache identity.");
         return paths.RequireWritablePath(Path.Combine(root, "tmdb", isOverride ? "override" : "cache", key.FileName));
     }
+    /// <summary>
+    /// M155: the original plugin's file for the same item (notes/decrypted/A----------/A----------.cs:114448, callers
+    /// :52110/:53613/:54254/:54979): {root}/{cache|override}/{tmdb-movies2|tmdb-tv}/{tmdbId}/{all|series|season-N|season-N-episode-M}.json,
+    /// a plain DTO with no language in its name. Read only when the rebuild's own file is missing.
+    /// </summary>
+    public string OriginalPath(Key key, bool isOverride)
+    {
+        var (folder, name) = key.Kind switch
+        {
+            "movie" => ("tmdb-movies2", "all"),
+            "series" => ("tmdb-tv", "series"),
+            "season" => ("tmdb-tv", "season-" + key.Season!.Value.ToString(CultureInfo.InvariantCulture)),
+            _ => ("tmdb-tv", "season-" + key.Season!.Value.ToString(CultureInfo.InvariantCulture) + "-episode-" + key.Episode!.Value.ToString(CultureInfo.InvariantCulture))
+        };
+        return paths.RequireWritablePath(Path.Combine(root, isOverride ? "override" : "cache", folder, key.Id.ToString(CultureInfo.InvariantCulture), name + ".json"));
+    }
+    public long OriginalReads => Interlocked.Read(ref originalReads);
+    private long originalReads;
     public JsonElement? Read(Key key, bool isOverride, CancellationToken token) => Read(key, isOverride, token, out _);
     internal JsonElement? Read(Key key, bool isOverride, CancellationToken token, out string? seriesOriginalLanguage)
     {
         seriesOriginalLanguage = null;
         token.ThrowIfCancellationRequested();
         var target = FilePath(key, isOverride);
-        if (!File.Exists(target)) return null;
+        var original = false;
+        if (!File.Exists(target))
+        {
+            // Original files never expired and are plain DTOs, like the rebuild's override files.
+            target = OriginalPath(key, isOverride);
+            if (!File.Exists(target)) return null;
+            original = true;
+        }
         using var file = new FileStream(paths.RequireWritablePath(target), FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
         if (file.Length > MaxBytes) return null;
         using var bytes = new MemoryStream();
@@ -67,7 +92,7 @@ public sealed class MovieDbResponseCache
         token.ThrowIfCancellationRequested();
         using var document = JsonDocument.Parse(bytes.ToArray());
         var data = document.RootElement;
-        if (!isOverride)
+        if (!isOverride && !original)
         {
             var entry = data.Deserialize<Entry>();
             if (entry?.Version != 1 || entry.Key != key || entry.FetchedAt > DateTimeOffset.UtcNow.AddMinutes(5) ||
@@ -75,8 +100,9 @@ public sealed class MovieDbResponseCache
             data = entry.Data;
         }
         if (!Matches(data, key)) return null;
+        if (original) Interlocked.Increment(ref originalReads);
         // Optional scalar only: malformed poster metadata never changes native DTO cache validity.
-        var name = isOverride ? "original_language" : "SeriesOriginalLanguage";
+        var name = isOverride || original ? "original_language" : "SeriesOriginalLanguage";
         var root = document.RootElement;
         if (key.Kind == "series" && root.EnumerateObject().Count(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase)) == 1 &&
             root.TryGetProperty(name, out var language) && language.ValueKind == JsonValueKind.String && language.GetString() is { Length: >= 2 and <= 35 } text)

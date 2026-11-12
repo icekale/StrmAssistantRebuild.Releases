@@ -26,6 +26,8 @@ public static class NativeMovieDbCache
     private sealed record State(Assembly Assembly, CacheMode Mode, MovieDbResponseCache Cache, Contract[] Contracts, MethodInfo[] Barriers, MethodInfo[] MetadataAliases);
     private sealed record Request(State State, Contract Contract, MovieDbResponseCache.Key Key, CancellationToken Token);
     public static bool IsEnabled => Volatile.Read(ref active) != null;
+    /// <summary>M155: reads served from the original plugin's cache/override layout.</summary>
+    public static long OriginalReads => Volatile.Read(ref active)?.Cache.OriginalReads ?? 0;
     public static string Detail { get; private set; } = "Inactive; native detail retrieval retained.";
 
     public static bool Configure(Version hostVersion, IEnumerable<IPlugin>? plugins, MetadataEnhanceOptions options,

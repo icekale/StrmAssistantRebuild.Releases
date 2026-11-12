@@ -18,7 +18,7 @@ public static class ExclusiveRemoteFetcherControl
     private const string Owner = "StrmAssistantRebuild.ExclusiveRemoteFetcher.4.10.2";
     private const string ProviderType = "Emby.Providers.Manager.ProviderManager";
     private const string Feature = "BlockRemoteFetcher";
-    private const string Coverage = "Exact persisted parented Series/Season/MusicAlbum/BoxSet: metadata and images, including manual queries. Exact rooted file Movie/Episode/Audio with positive ID, nonempty GUID, parent and no ExtraType: remote metadata with no current refresh/owned scope, or in ordinary native RefreshSingleItem scopes witnessed at image eligibility; full metadata with image ValidationOnly also filters remote-only providers (not IPreRefreshProvider), with no Replace/Search/Overwrite. Explicit/invalid scopes, missing image entry, identity drift and other scoped refresh modes stay native. IgnoreFileChange/clear/restore remain unsupported.";
+    private const string Coverage = "Exact persisted parented Series/Season/MusicAlbum/BoxSet: metadata and images, including manual queries. Exact rooted file Movie/Episode/Audio with positive ID, nonempty GUID, parent and no ExtraType: remote metadata with no current refresh/owned scope, or in ordinary native RefreshSingleItem scopes witnessed at image eligibility; full metadata with image ValidationOnly also filters remote-only providers (not IPreRefreshProvider), with no Replace/Search/Overwrite. Explicit/invalid scopes, missing image entry, identity drift and other scoped refresh modes stay native. File-change handling is ExclusiveFileChange (M157).";
     private static readonly Version ExpectedVersion = new(4, 10, 2, 0);
     private static readonly Guid ExpectedMvid = new("29b37ec2-5f02-443c-a995-1f61c71f43c6");
     private static readonly object Gate = new();
@@ -27,14 +27,42 @@ public static class ExclusiveRemoteFetcherControl
     private static Harmony? patcher;
     private static long generation;
     private static volatile bool enabled;
+    // M158: blockAll = BlockRemoteFetcher (9) selected; defaultRules = the original default exclusive provider rules.
+    private static volatile bool blockAll = true, defaultRules;
     public static bool IsEnabled => enabled;
+    public static bool BlocksAllRemote => enabled && blockAll;
+    public static bool DefaultRulesActive => enabled && defaultRules;
     public static bool IsHealthy { get { lock (Gate) return HealthyTypedOwner(); } }
     public static string Detail { get; private set; } = "Disabled. " + Coverage;
+
+    /// <summary>
+    /// M158: production entry. Installs the same pinned CanRefresh prefixes whenever exclusive mode is on and applies the
+    /// original default rules (decompiled metadata/image CanRefresh prefixes): on an ordinary refresh of an old Video/Audio
+    /// item remote metadata and image providers are skipped, and a screen-grab (dynamic) image provider is skipped when the
+    /// item already has a Primary image unless CatchAllAllow or ReplaceAllImages (without CatchAllBlock/UnconditionalBlock).
+    /// BlockRemoteFetcher (9) keeps its existing bounded behavior on top.
+    /// </summary>
+    public static bool ConfigureWithDefaults(Version hostVersion, bool exclusiveEnabled, string? features, out string detail)
+    {
+        lock (Gate)
+        {
+            var nine = (features ?? "").Split(',', StringSplitOptions.TrimEntries).Contains(Feature, StringComparer.OrdinalIgnoreCase);
+            if (!exclusiveEnabled) { defaultRules = false; return Configure(hostVersion, false, "", out detail); }
+            var ok = Configure(hostVersion, true, Feature, out detail);
+            if (!ok) { defaultRules = false; return false; }
+            blockAll = nine;
+            if (!nine) ExclusiveSaverControl.RemoteContextEnabled = false;
+            defaultRules = true;
+            detail = Detail = (nine ? "Enabled: BlockRemoteFetcher plus original default provider rules. " : "Enabled: original default exclusive provider rules (ordinary refresh skips remote providers; screen grab only without Primary). ") + Coverage;
+            return true;
+        }
+    }
 
     public static bool Configure(Version hostVersion, bool exclusiveEnabled, string? features, out string detail)
     {
         lock (Gate)
         {
+            blockAll = true; defaultRules = false;
             try
             {
                 var selected = (features ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -130,6 +158,7 @@ public static class ExclusiveRemoteFetcherControl
             Detail = "Inactive: eligibility ownership changed; callbacks inactive. " + Coverage;
             return false;
         }
+        if (!blockAll) return false;
         // Deliberate bounded subset: no URL/protocol tests, opaque refresh guesses or library option mutations.
         return item != null && (item.GetType() == typeof(Series) || item.GetType() == typeof(Season) ||
             item.GetType() == typeof(MusicAlbum) || item.GetType() == typeof(BoxSet)) &&
@@ -139,8 +168,9 @@ public static class ExclusiveRemoteFetcherControl
     private static bool MetadataPrefix(IMetadataProvider provider, BaseItem item, LibraryOptions libraryOptions, ref bool __result)
     {
         if (provider is not IRemoteMetadataProvider) return true;
+        if (defaultRules && enabled && ExclusiveEligibility.SkipRemoteOnOrdinary(item)) { __result = false; return false; }
         var block = ShouldFilter(item); // Preserve the existing non-media contract.
-        if (!block && HealthyTypedOwner())
+        if (!block && blockAll && HealthyTypedOwner())
         {
             var epoch = Volatile.Read(ref generation);
             block = ExclusiveSaverControl.CanBlockRemoteMetadata(item, libraryOptions, epoch, provider is not IPreRefreshProvider) &&
@@ -155,7 +185,10 @@ public static class ExclusiveRemoteFetcherControl
     {
         // First image candidate is the original typed-context boundary, even when it is a local provider.
         // This owner alone holds 257/256. No second consumer competes for those Harmony targets.
-        if (HealthyTypedOwner()) ExclusiveSaverControl.CaptureRemoteRefresh(item, libraryOptions, refreshOptions, Volatile.Read(ref generation));
+        if (blockAll && HealthyTypedOwner()) ExclusiveSaverControl.CaptureRemoteRefresh(item, libraryOptions, refreshOptions, Volatile.Read(ref generation));
+        if (defaultRules && enabled && (provider is IRemoteImageProvider && ExclusiveEligibility.SkipRemoteOnOrdinary(item) ||
+            provider is IDynamicImageProviderWithLibraryOptions && ExclusiveEligibility.BlockDynamicImage(item)))
+        { __result = false; return false; }
         if (provider is not IRemoteImageProvider || !ShouldFilter(item)) return true;
         __result = false;
         return false;
