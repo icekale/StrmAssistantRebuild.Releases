@@ -19,7 +19,8 @@ namespace StrmAssistantRebuild.Common;
 ///   media complete -> blocked;  media missing/incomplete: allowed, except CatchAllBlock (only "metadata-only full
 ///   refresh") and UnconditionalBlock (never).
 /// New items stay blocked (the rebuild extracts them itself, as the original did).
-/// Not reproduced: per-item feature marks written by the original's own metadata task.
+/// M160: per-item feature marks (original A----------.cs:19532 ff., item dictionary that replaces the global set) written
+/// around the plugin's Refresh Metadata task and catch-up episode refresh for Video items: {CatchAllBlock, IgnoreExtSubChange}.
 /// </summary>
 public static class ExclusiveEligibility
 {
@@ -56,12 +57,39 @@ public static class ExclusiveEligibility
             foreach (var implicitFeature in new[] { ExclusiveFileChange.IgnoreFileChange, CatchAllBlock }) if (!chosen.Contains(implicitFeature)) chosen.Add(implicitFeature);
         selected = chosen.ToArray();
     }
-    public static void Clear() => selected = Array.Empty<string>();
-    private static bool Has(string feature) => selected.Contains(feature);
+    public static void Clear() { selected = Array.Empty<string>(); ItemMarks.Clear(); }
+
+    // M160: original per-item feature dictionary. An item with an entry uses only its own features (the global selection,
+    // including implicit Restore features, is ignored for it); the entry is removed when the marking operation ends.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<long, string[]> ItemMarks = new();
+    private static long marked;
+    public static long ItemsMarked => Interlocked.Read(ref marked);
+    public static int ActiveItemMarks => ItemMarks.Count;
+    /// <summary>Original task marks (RefreshMetadataTask.cs:1283-1330): a Video refreshed by the plugin's metadata task or
+    /// catch-up episode refresh is treated as {CatchAllBlock, IgnoreExtSubChange} until the refresh ends.</summary>
+    public static readonly string[] TaskFeatures = { CatchAllBlock, ExclusiveFileChange.IgnoreExtSubChange };
+    public static IDisposable? EnterTaskItem(BaseItem item)
+    {
+        if (item is not Video || item.InternalId <= 0) return null;
+        MarkItem(item.InternalId, TaskFeatures);
+        return new ItemMark(item.InternalId);
+    }
+    internal static void MarkItem(long id, params string[] features)
+    {
+        ItemMarks.AddOrUpdate(id, features.Distinct().ToArray(), (_, old) => old.Union(features).ToArray());
+        Interlocked.Increment(ref marked);
+    }
+    internal static void ClearItem(long id) => ItemMarks.TryRemove(id, out _);
+    private sealed class ItemMark(long id) : IDisposable { private int done; public void Dispose() { if (Interlocked.Exchange(ref done, 1) == 0) ClearItem(id); } }
+    /// <summary>Original Has(id, feature): the item's own marks when present, otherwise the global selection.</summary>
+    public static IReadOnlyCollection<string> SelectedFor(long? id) => id is { } x && ItemMarks.TryGetValue(x, out var own) ? own : selected;
+    private static bool Has(string feature, long? id = null) => SelectedFor(id).Contains(feature);
     private static readonly string[] AllowFamily = { CatchAllAllow, CatchAllAllowChapterImage };
     /// <summary>Original HasAny(id, CatchAllAllow, CatchAllAllowChapterImage).</summary>
-    internal static bool AllowAll => Has(CatchAllAllow) || Has(CatchAllAllowChapterImage);
-    internal static bool ChapterImageSelected => Has(CatchAllAllowChapterImage);
+    internal static bool AllowAllFor(long? id) => Has(CatchAllAllow, id) || Has(CatchAllAllowChapterImage, id);
+    internal static bool AllowAll => AllowAllFor(null);
+    internal static bool ChapterImageSelectedFor(long? id) => Has(CatchAllAllowChapterImage, id);
+    internal static bool ChapterImageSelected => ChapterImageSelectedFor(null);
     /// <summary>M159: the live native refresh is this item's own (parented file Video/Audio, not plugin-owned).</summary>
     internal static bool InNativeRefreshOf(BaseItem item) => ContextFor(item) != null;
 
@@ -87,7 +115,7 @@ public static class ExclusiveEligibility
     public static bool BlockDynamicImage(BaseItem item)
     {
         if (ContextFor(item) is not { IsNew: false } c) return false;
-        var block = !DynamicPermitted(false, item.HasImage(ImageType.Primary, 0), c.Options.ReplaceAllImages, AllowAll, Has(CatchAllBlock), Has(UnconditionalBlock));
+        var block = !DynamicPermitted(false, item.HasImage(ImageType.Primary, 0), c.Options.ReplaceAllImages, AllowAllFor(item.InternalId), Has(CatchAllBlock, item.InternalId), Has(UnconditionalBlock, item.InternalId));
         if (block) Interlocked.Increment(ref dynamicSkipped);
         return block;
     }
@@ -98,7 +126,7 @@ public static class ExclusiveEligibility
     internal static bool AllowNativeImage()
     {
         if (ExclusiveSaverControl.CurrentNativeRefresh is not { } c || ContextFor(c.Item) == null || c.Item.IsShortcut) return false;
-        var allow = DynamicPermitted(c.IsNew, c.Item.HasImage(ImageType.Primary, 0), c.Options.ReplaceAllImages, AllowAll, Has(CatchAllBlock), Has(UnconditionalBlock));
+        var allow = DynamicPermitted(c.IsNew, c.Item.HasImage(ImageType.Primary, 0), c.Options.ReplaceAllImages, AllowAllFor(c.Item.InternalId), Has(CatchAllBlock, c.Item.InternalId), Has(UnconditionalBlock, c.Item.InternalId));
         if (allow) Interlocked.Increment(ref imagesAllowed);
         return allow;
     }
@@ -107,8 +135,9 @@ public static class ExclusiveEligibility
     {
         var context = ExclusiveSaverControl.CurrentNativeRefresh;
         if (context is not { } c) return false;
-        var allow = Decide(c.Item, c.Options, c.IsNew, c.Ordinary, AllowAll, Has(CatchAllBlock), Has(UnconditionalBlock),
-            fileChanged: c.FileChange?.Changed == true, ignoreFileChange: Has(ExclusiveFileChange.IgnoreFileChange));
+        var id = c.Item.InternalId;
+        var allow = Decide(c.Item, c.Options, c.IsNew, c.Ordinary, AllowAllFor(id), Has(CatchAllBlock, id), Has(UnconditionalBlock, id),
+            fileChanged: c.FileChange?.Changed == true, ignoreFileChange: Has(ExclusiveFileChange.IgnoreFileChange, id));
         if (allow && c.FileChange != null) c.FileChange.ProbeAllowed = true;
         Interlocked.Increment(ref allow ? ref allowed : ref denied);
         return allow;

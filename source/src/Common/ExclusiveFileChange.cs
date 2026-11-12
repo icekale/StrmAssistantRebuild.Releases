@@ -65,7 +65,7 @@ public static class ExclusiveFileChange
     {
         var h = hooks;
         if (h == null || isNew || !Eligible(item) || ExclusiveMediaControl.IsOwnedOperation) return null;
-        var selected = ExclusiveEligibility.Selected;
+        var selected = ExclusiveEligibility.SelectedFor(item.InternalId); // M160: per-item task marks replace the global set
         var state = new State();
         state.OriginalDate = item.DateModified;
         (state.Changed, state.Stamp) = FileChanged(item);

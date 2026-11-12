@@ -267,7 +267,7 @@ public sealed class MediaCatchupService : IDisposable
                     var refresh = plugin.MetadataStore.GetOptions().MetadataRefreshOptions;
                     if (ScopeSelection.Matches(library, item, refresh.MetadataRefreshLibraryScope, LibraryScopeKind.Metadata, token) &&
                         MetadataRefreshPolicy.NeedsRefresh(item, refresh, DateTimeOffset.UtcNow))
-                        await plugin.MetadataPipeline.RefreshAsync(item, token).ConfigureAwait(false);
+                        await plugin.MetadataPipeline.RefreshAsync(item, token, exclusiveTaskMarks: true).ConfigureAwait(false);
                 }, token).ConfigureAwait(false);
             await Attempt("intro", item.InternalId, async () =>
             {

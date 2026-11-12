@@ -173,7 +173,7 @@ public sealed class MetadataEnhancePipeline : IDisposable
         }
     }
     public Task ApplyAsync(BaseItem item, CancellationToken token) => queue.RunSingle(item.InternalId, async ct => { await EnhanceCore(item, ct).ConfigureAwait(false); return true; }, token);
-    public Task<bool> RefreshAsync(BaseItem item, CancellationToken token, bool metadata = true, bool images = true, bool fullImages = false, bool downloadImagesInAdvance = false, bool supplementOnly = false) =>
+    public Task<bool> RefreshAsync(BaseItem item, CancellationToken token, bool metadata = true, bool images = true, bool fullImages = false, bool downloadImagesInAdvance = false, bool supplementOnly = false, bool exclusiveTaskMarks = false) =>
         queue.RunSingle(item.InternalId, async ct =>
         {
             if (supplementOnly)
@@ -191,12 +191,14 @@ public sealed class MetadataEnhancePipeline : IDisposable
                 return await PersonSupplement.ApplyAsync(person, metadata, images, providers, library, configuration,
                     new DirectoryService(logger, files), paths, ct).ConfigureAwait(false);
             }
-            await RefreshCore(item, ct, metadata, images, fullImages, downloadImagesInAdvance).ConfigureAwait(false);
+            await RefreshCore(item, ct, metadata, images, fullImages, downloadImagesInAdvance, exclusiveTaskMarks).ConfigureAwait(false);
             return true;
         }, token);
+    /// <summary>M160: set by the plugin to ExclusiveEligibility.EnterTaskItem (kept as a hook so this pipeline has no exclusive-mode dependency).</summary>
+    public static Func<BaseItem, IDisposable?>? TaskItemMarks { get; set; }
     public Task<BatchProgress> RefreshBatchAsync(IReadOnlyList<BaseItem> items, IProgress<double> progress, CancellationToken token) =>
-        queue.RunBatch(items, (item, ct) => RefreshCore(item, ct, true, true, false), progress, token, true, i => i.InternalId);
-    private async Task RefreshCore(BaseItem item, CancellationToken token, bool metadata, bool images, bool fullImages, bool downloadImagesInAdvance = false)
+        queue.RunBatch(items, (item, ct) => RefreshCore(item, ct, true, true, false, false, exclusiveTaskMarks: true), progress, token, true, i => i.InternalId);
+    private async Task RefreshCore(BaseItem item, CancellationToken token, bool metadata, bool images, bool fullImages, bool downloadImagesInAdvance = false, bool exclusiveTaskMarks = false)
     {
         if (item.IsLocked) return;
         paths.RequireWritablePath(item.GetInternalMetadataPath());
@@ -214,6 +216,8 @@ public sealed class MetadataEnhancePipeline : IDisposable
         };
         using var origin = SuppressRefreshEvents(item.InternalId);
         lock (pendingGate) pendingEnhancements.Remove(item.InternalId);
+        // M160: original RefreshMetadataTask/EpisodeRefresh mark a Video item with {CatchAllBlock, IgnoreExtSubChange} for the refresh.
+        using var exclusiveMarks = exclusiveTaskMarks ? TaskItemMarks?.Invoke(item) : null;
         try
         {
             await providers.RefreshSingleItem(item, refresh, collections, configuration, token).ConfigureAwait(false);

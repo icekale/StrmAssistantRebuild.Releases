@@ -194,6 +194,7 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
             ExclusiveFileChange.Configure(new ExclusiveFileChange.Hooks(ClearOnFileChange, item => MaintenanceService.ExternalTracksChanged(item),
                 (item, token) => MaintenanceService.ScanExternalTracksAsync(item, token),
                 (item, stamp) => { item.DateModified = stamp; libraries.UpdateItems(new List<MediaBrowser.Controller.Entities.BaseItem> { item }, null!, ItemUpdateType.None, false, false, null!, CancellationToken.None); }));
+            MetadataEnhancePipeline.TaskItemMarks = ExclusiveEligibility.EnterTaskItem; // M160 original task item marks
             PatchHealth.Record("IntroRefreshBridge", IntroRefreshBridge.Configure(host.ApplicationVersion, true, this, libraryManager, userManager, taskManager, Logger, out var refreshBridge));
             Logger.Info("[StrmAssistantRebuild] {0}", refreshBridge);
             MarkerNotifications = new MarkerUpdateNotification(libraryManager,userManager,notifications,Logger,sessionManager);
@@ -768,6 +769,7 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
         LibraryScopePlayProgressControl.Disable();
         DeepDeleteControl.Disable();
         ExclusiveFileChange.Configure(null);
+        MetadataEnhancePipeline.TaskItemMarks = null;
         Provider.NativeChannelItemRefresh.Disable();
         Provider.DoubanChannelService.Current = null;
         ScopeSelection.ConfigureUsers(null);

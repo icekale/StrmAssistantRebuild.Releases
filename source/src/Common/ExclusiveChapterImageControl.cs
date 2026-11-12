@@ -114,7 +114,7 @@ public static class ExclusiveChapterImageControl
         if (!enabled || item == null || !ExclusiveEligibility.InNativeRefreshOf(item)) return;
         Scope.Value = item.InternalId;
         Interlocked.Increment(ref scoped);
-        if (ForceFor(ExclusiveEligibility.ChapterImageSelected, item.SupportsThumbnails, libraryOptions?.EnableChapterImageExtraction == true))
+        if (ForceFor(ExclusiveEligibility.ChapterImageSelectedFor(item.InternalId), item.SupportsThumbnails, libraryOptions?.EnableChapterImageExtraction == true))
         { extractImages = true; replaceExistingImages = true; Interlocked.Increment(ref forced); }
     }
     private static void Postfix(long __state) => Scope.Value = __state;
