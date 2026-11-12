@@ -146,7 +146,8 @@ public sealed class RuntimeCapabilities
         Set("Activation.NativeMovieDbRouting", Good("Host") && NativeMovieDbRouting.IsEnabled, NativeMovieDbRouting.Detail);
         Set("Activation.NativeMovieDbCache", Good("Host") && NativeMovieDbCache.IsEnabled, NativeMovieDbCache.Detail);
         Set("Activation.NativeImageCache", Good("Host") && Provider.NativeImageCache.IsEnabled, Provider.NativeImageCache.Detail +
-            " Restored=" + Provider.NativeImageCache.Restored + "; remote skipped=" + Provider.NativeImageCache.SkippedRemote + "; written=" + Provider.NativeImageCache.Written + ".");
+            " Restored=" + Provider.NativeImageCache.Restored + "; remote skipped=" + Provider.NativeImageCache.SkippedRemote + "; written=" + Provider.NativeImageCache.Written + "; background fetch queued=" + Provider.NativeImageCache.RemoteQueued +
+            ", pending=" + Provider.NativeImageCache.RemotePending + ", dropped=" + Provider.NativeImageCache.RemoteDropped + ".");
         Set("Activation.NativeSeasonCast", Good("Host") && NativeSeasonCastControl.IsEnabled, NativeSeasonCastControl.Detail);
         Set("Activation.PersonDetailRefresh", Good("Host") && PersonDetailRefreshControl.IsEnabled, PersonDetailRefreshControl.Detail);
         Set("Activation.NativePosterOrdering", Good("Host") && NativePosterOrdering.IsEnabled, NativePosterOrdering.Detail);
@@ -229,7 +230,7 @@ public sealed class RuntimeCapabilities
     /// <summary>
     /// M143/F8: field-level editability for controls whose own consumer is assembled and host-verified while the
     /// complete group stays false. Group flags, IsModSuccess and parity claims are unchanged. Fields without a
-    /// complete consumer (LibraryScopePlayProgress, PreferOriginalPoster) stay gated.
+    /// complete consumer (LibraryScopePlayProgress) stay gated; PreferOriginalPoster is editable since M152.
     /// </summary>
     private void DefineFieldGates()
     {
@@ -277,7 +278,11 @@ public sealed class RuntimeCapabilities
             "Verified TheMovieDb 2.0 adapter: language fallback, episode groups, person enhancement and alternate endpoints.",
             "ChineseMovieDb", "FallbackLanguages", "MovieDbEpisodeGroup", "LocalEpisodeGroup", "EnhanceMovieDbPerson",
             "AltMovieDbConfig", "AltMovieDbApiUrl", "AltMovieDbImageUrl", "AltMovieDbApiKey");
-        Set("Field.Gated", true, "Still gated by complete-group flags: LibraryScopePlayProgress (global option inactive), PreferOriginalPoster (poster group incomplete).");
+        // M152: host-verified (TMDB 496243: ON puts original-language posters first); edge cases stay listed under IsOriginalPosterSupported.
+        Fields("Metadata.OriginalPoster", Good("Metadata.IsModSupported") && (Good("Dependency.MovieDb") || Good("Dependency.Tvdb")) && services.Languages != null,
+            "Pinned TMDB/TVDB poster ordering by original language for Movie/Series/Season/Episode/BoxSet; the poster group's remaining edge cases keep the group bit false.",
+            "PreferOriginalPoster");
+        Set("Field.Gated", true, "Still gated by complete-group flags: LibraryScopePlayProgress (global option inactive).");
     }
 
     private bool Good(string key) => entries[key].Supported;

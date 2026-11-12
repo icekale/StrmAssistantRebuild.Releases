@@ -19,7 +19,8 @@ namespace StrmAssistantRebuild.Provider;
 /// ItemImageProvider.RefreshFromProvider (remote overload) restores cached TheMovieDb images for Movie/Series/Season/BoxSet
 /// before the provider runs, and skips the remote fetch when every required type is satisfied. Required = provider-supported
 /// enabled types; optional = MetadataCacheOptionalImageTypes plus, for Movie/Series/BoxSet, Thumb/Banner/Disc/Art (original
-/// constants). Images that native downloads in the same pass are copied into the cache afterwards. Disk layout is the
+/// constants). Images that native downloads in the same pass are copied into the cache afterwards; image stubs (library
+/// "download images in advance" OFF) are fetched once in the background through the provider (M152). Disk layout is the
 /// rebuild's own ({root}/tmdb/images/{kind}-{id}[-sN]/{type}.{ext}); the original layout strings are not recoverable.
 /// </summary>
 public static class NativeImageCache
@@ -39,7 +40,13 @@ public static class NativeImageCache
     private static Harmony? patcher;
     private static MethodInfo? installed;
     private static State? active;
-    private static long restored, skipped, written;
+    private static long restored, skipped, written, remoteQueued, remoteDropped;
+    private static int remotePending;
+    public const int MaxRemotePending = 256;
+    // Stub images (library "download images in advance" OFF) are fetched for the cache in the background, two at a time,
+    // so the native refresh is never delayed. Reconfigure/Disable cancels outstanding fetches.
+    private static readonly SemaphoreSlim RemoteSlots = new(2, 2);
+    private static CancellationTokenSource remoteLifetime = new();
     private sealed class State
     {
         public CacheMode Mode; public string Root = ""; public EmbyPathPolicy Paths = null!;
@@ -47,11 +54,22 @@ public static class NativeImageCache
         public bool Reads => Mode == CacheMode.PreferCacheThenOnline;
         public bool Writes => Mode is CacheMode.PreferCacheThenOnline or CacheMode.PreferOnlineWithCache;
     }
-    public sealed record WriteState(BaseItem Item, string Folder, ImageType[] Before, ImageType[] Restored, ImageType[] Candidates);
+    public sealed record WriteState(BaseItem Item, IRemoteImageProvider Provider, string Folder, ImageType[] Before, ImageType[] Restored, ImageType[] Candidates);
     public static bool IsEnabled => Volatile.Read(ref active) != null;
     public static long Restored => Interlocked.Read(ref restored);
     public static long SkippedRemote => Interlocked.Read(ref skipped);
     public static long Written => Interlocked.Read(ref written);
+    public static long RemoteQueued => Interlocked.Read(ref remoteQueued);
+    public static long RemoteDropped => Interlocked.Read(ref remoteDropped);
+    public static int RemotePending => Volatile.Read(ref remotePending);
+    /// <summary>Test hook: completes when no background stub fetch is pending.</summary>
+    public static async Task<bool> DrainRemoteAsync(TimeSpan timeout)
+    {
+        var end = DateTime.UtcNow + timeout;
+        while (Volatile.Read(ref remotePending) > 0) { if (DateTime.UtcNow > end) return false; await Task.Delay(20).ConfigureAwait(false); }
+        return true;
+    }
+    private static void CancelRemote() { var old = Interlocked.Exchange(ref remoteLifetime, new CancellationTokenSource()); old.Cancel(); old.Dispose(); }
     public static string Detail { get; private set; } = "Inactive; native image refresh unchanged.";
 
     public static HashSet<ImageType> ParseOptional(string? value) =>
@@ -64,6 +82,7 @@ public static class NativeImageCache
         lock (Gate)
         {
             Volatile.Write(ref active, null);
+            CancelRemote();
             try
             {
                 Remove();
@@ -104,6 +123,7 @@ public static class NativeImageCache
         lock (Gate)
         {
             Volatile.Write(ref active, null);
+            CancelRemote();
             try { Remove(); Detail = "Disabled; native image refresh unchanged."; }
             catch { Detail = "Disabled; cleanup pending; native passthrough."; }
         }
@@ -186,7 +206,7 @@ public static class NativeImageCache
                     Interlocked.Increment(ref restored);
                 }
             }
-            if (state.Writes) __state = new WriteState(item, folder, before, restoredNow.ToArray(), Order.Where(wanted.Contains).ToArray());
+            if (state.Writes) __state = new WriteState(item, provider, folder, before, restoredNow.ToArray(), Order.Where(wanted.Contains).ToArray());
             var optional = new HashSet<ImageType>(state.Optional);
             if (extras) optional.UnionWith(Extras);
             if (state.Reads && wanted.Where(t => !optional.Contains(t)).All(satisfied.Contains) && restoredNow.Count > 0)
@@ -223,26 +243,85 @@ public static class NativeImageCache
             foreach (var type in write.Candidates.Where(t => fresh.Contains(t) && !write.Restored.Contains(t)))
             {
                 var image = write.Item.GetImageInfo(type, 0);
-                if (image == null || !image.IsLocalFile || !File.Exists(image.Path)) continue;
-                var info = new FileInfo(image.Path);
-                var extension = Path.GetExtension(info.Name).ToLowerInvariant();
-                if (!Mime.ContainsKey(extension) || info.Length <= 0 || info.Length > MaxFileBytes) continue;
-                if (Interlocked.Add(ref state.TotalBytes, info.Length) > state.MaxTotalBytes)
-                { Interlocked.Add(ref state.TotalBytes, -info.Length); Detail = "Active; cache budget reached, new images not written."; continue; }
-                Directory.CreateDirectory(state.Paths.RequireWritablePath(write.Folder));
-                foreach (var old in Directory.EnumerateFiles(write.Folder, type.ToString().ToLowerInvariant() + ".*").ToArray())
-                { var length = new FileInfo(old).Length; File.Delete(old); Interlocked.Add(ref state.TotalBytes, -length); }
-                var target = state.Paths.RequireWritablePath(Path.Combine(write.Folder, type.ToString().ToLowerInvariant() + extension));
-                var temp = target + "." + Guid.NewGuid().ToString("N") + ".tmp";
-                File.Copy(info.FullName, temp, true);
-                File.Move(temp, target, true);
-                Interlocked.Increment(ref written);
+                if (image == null || string.IsNullOrEmpty(image.Path)) continue;
+                if (image.IsLocalFile)
+                {
+                    if (!File.Exists(image.Path)) continue;
+                    var info = new FileInfo(image.Path);
+                    var extension = Path.GetExtension(info.Name).ToLowerInvariant();
+                    if (!Mime.ContainsKey(extension) || info.Length <= 0 || info.Length > MaxFileBytes) continue;
+                    Store(state, write.Folder, type, extension, info.Length, temp => File.Copy(info.FullName, temp, true));
+                }
+                else if (Uri.TryCreate(image.Path, UriKind.Absolute, out var url) && url.Scheme is "https" or "http")
+                    QueueRemote(state, write, type, url.AbsoluteUri);
             }
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
             Detail = "Active; last cache write failed (" + error.GetType().Name + "); images remain on the item.";
         }
+    }
+
+    private static bool Store(State state, string folder, ImageType type, string extension, long length, Action<string> writeTemp)
+    {
+        if (Interlocked.Add(ref state.TotalBytes, length) > state.MaxTotalBytes)
+        { Interlocked.Add(ref state.TotalBytes, -length); Detail = "Active; cache budget reached, new images not written."; return false; }
+        Directory.CreateDirectory(state.Paths.RequireWritablePath(folder));
+        foreach (var old in Directory.EnumerateFiles(folder, type.ToString().ToLowerInvariant() + ".*").ToArray())
+        { var size = new FileInfo(old).Length; File.Delete(old); Interlocked.Add(ref state.TotalBytes, -size); }
+        var target = state.Paths.RequireWritablePath(Path.Combine(folder, type.ToString().ToLowerInvariant() + extension));
+        var temp = target + "." + Guid.NewGuid().ToString("N") + ".tmp";
+        writeTemp(temp);
+        File.Move(temp, target, true);
+        Interlocked.Increment(ref written);
+        return true;
+    }
+    /// <summary>
+    /// Library "download images in advance" OFF: native stores only the remote URL (image stub). The same TheMovieDb image
+    /// is fetched once through the provider's own GetImageResponse (native transport, proxy and headers) and cached.
+    /// </summary>
+    private static void QueueRemote(State state, WriteState write, ImageType type, string url)
+    {
+        if (Interlocked.Increment(ref remotePending) > MaxRemotePending)
+        { Interlocked.Decrement(ref remotePending); Interlocked.Increment(ref remoteDropped); return; }
+        Interlocked.Increment(ref remoteQueued);
+        var token = remoteLifetime.Token;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await RemoteSlots.WaitAsync(token).ConfigureAwait(false);
+                try
+                {
+                    if (Volatile.Read(ref active) != state) return;
+                    using var response = await write.Provider.GetImageResponse(url, token).ConfigureAwait(false);
+                    var extension = ExtensionFor(response.ContentType, url);
+                    if (extension == null || response.Content == null) return;
+                    using var buffer = new MemoryStream();
+                    var chunk = new byte[81920]; int read;
+                    while ((read = await response.Content.ReadAsync(chunk, token).ConfigureAwait(false)) > 0)
+                    {
+                        if (buffer.Length + read > MaxFileBytes) return;
+                        buffer.Write(chunk, 0, read);
+                    }
+                    if (buffer.Length == 0 || Volatile.Read(ref active) != state) return;
+                    var bytes = buffer.ToArray();
+                    Store(state, write.Folder, type, extension, bytes.Length, temp => File.WriteAllBytes(temp, bytes));
+                }
+                finally { RemoteSlots.Release(); }
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception error) { Detail = "Active; last background image fetch failed (" + error.GetType().Name + ")."; }
+            finally { Interlocked.Decrement(ref remotePending); }
+        });
+    }
+    internal static string? ExtensionFor(string? contentType, string url)
+    {
+        var mime = contentType?.Split(';')[0].Trim();
+        var byMime = Mime.Where(p => string.Equals(p.Value, mime, StringComparison.OrdinalIgnoreCase)).Select(p => p.Key).FirstOrDefault();
+        if (byMime != null) return byMime == ".jpeg" ? ".jpg" : byMime;
+        var byUrl = Path.GetExtension(new Uri(url).AbsolutePath).ToLowerInvariant();
+        return Mime.ContainsKey(byUrl) ? (byUrl == ".jpeg" ? ".jpg" : byUrl) : null;
     }
 
     internal static bool Verify(MethodInfo method)
