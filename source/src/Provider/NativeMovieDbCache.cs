@@ -87,6 +87,20 @@ public static class NativeMovieDbCache
                     installed.Add(barrier);
                     patcher!.Patch(barrier, prefix: new HarmonyMethod(typeof(NativeMovieDbCache).GetMethod(nameof(CallerBarrier), BindingFlags.NonPublic | BindingFlags.Static)!));
                 }
+                // M164: original patches for collections (BoxSet): postfix on the pinned MovieDbBoxSetProvider.EnsureInfo.
+                var collection = assembly.GetType("MovieDb.MovieDbBoxSetProvider", true)!.GetMethod("EnsureInfo", BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly,
+                    null, new[] { typeof(string), typeof(string), typeof(CancellationToken) }, null);
+                var collectionIl = collection?.GetMethodBody()?.GetILAsByteArray();
+                if (collection != null && collection.MetadataToken == 0x060000C5 && collectionIl?.Length == 79 &&
+                    Convert.ToHexString(SHA256.HashData(collectionIl)) == "0D5BD06D6A36BDD59B282C0C795A6772714599F6FD25A12206913336522DEF89" &&
+                    collection.ReturnType.IsGenericType && collection.ReturnType.GetGenericTypeDefinition() == typeof(Task<>))
+                {
+                    var dto = collection.ReturnType.GetGenericArguments()[0];
+                    collectionWrap = typeof(NativeMovieDbCache).GetMethod(nameof(PatchCollection), BindingFlags.NonPublic | BindingFlags.Static)!.MakeGenericMethod(dto)
+                        .CreateDelegate<Func<object, MovieDbResponseCache, MovieDbResponseCache.Key, object>>();
+                    installed.Add(collection);
+                    patcher!.Patch(collection, postfix: new HarmonyMethod(typeof(NativeMovieDbCache).GetMethod(nameof(CollectionAfter), BindingFlags.NonPublic | BindingFlags.Static)!));
+                }
                 Volatile.Write(ref active, state);
                 detail = Detail = "Configured pinned Movie/Series/Season/Episode TMDB DTO cache; reconstructed layout, original TMDB override JSON; native transport retained.";
                 return true;
@@ -219,6 +233,33 @@ public static class NativeMovieDbCache
         catch (Exception) { return result; } // A patch fault never changes a successfully completed native DTO.
     }
     private static void CallerBarrier() { }
+    private static Func<object, MovieDbResponseCache, MovieDbResponseCache.Key, object>? collectionWrap;
+    /// <summary>M164: the original applies override/tmdb-collections/{id}/patches/all.json to the collection DTO (non-empty language).</summary>
+    private static void CollectionAfter(string tmdbId, string metadataLanguage, ref object __result)
+    {
+        var state = Volatile.Read(ref active);
+        if (state == null || __result == null || collectionWrap == null) return;
+        try
+        {
+            if (MovieDbResponseCache.Key.Create("collection", tmdbId, metadataLanguage) is not { Language.Length: > 0 } key) return;
+            if (!File.Exists(state.Cache.PatchPath(key))) return;
+            __result = collectionWrap(__result, state.Cache, key);
+        }
+        catch (Exception) { /* keep the native Task */ }
+    }
+    private static object PatchCollection<T>(object task, MovieDbResponseCache cache, MovieDbResponseCache.Key key) => PatchCollectionAsync((Task<T>)task, cache, key);
+    private static async Task<T> PatchCollectionAsync<T>(Task<T> native, MovieDbResponseCache cache, MovieDbResponseCache.Key key)
+    {
+        var result = await native.ConfigureAwait(false);
+        if (result == null) return result;
+        try
+        {
+            var data = JsonSerializer.SerializeToElement(result);
+            var patched = cache.ApplyPatch(data, key, CancellationToken.None);
+            return patched.GetRawText() == data.GetRawText() ? result : patched.Deserialize<T>() ?? result;
+        }
+        catch (Exception) { return result; }
+    }
     private static MethodInfo Barrier(Assembly assembly, int token, int length, string hash)
     {
         var method = (MethodInfo)assembly.ManifestModule.ResolveMethod(token)!;

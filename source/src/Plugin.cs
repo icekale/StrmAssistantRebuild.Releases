@@ -410,7 +410,21 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
         if (options.ChineseMovieDb && !string.Equals(options.MetadataBuildOptions.MetadataCacheMode, "None", StringComparison.OrdinalIgnoreCase))
             await Part("original-overrides", () =>
             {
-                if (OriginalOverrides.Apply(item)) libraries.UpdateItems(new() { item }, null, ItemUpdateType.MetadataEdit, true, false, null, token);
+                var targets = new List<MediaBrowser.Controller.Entities.BaseItem> { item };
+                // A recursive series refresh may save its seasons/specials again after their own enhancement ran; the series
+                // pass (raised when the whole refresh completes) re-applies the series-level files to them (M164).
+                if (item is MediaBrowser.Controller.Entities.TV.Series series)
+                    targets.AddRange(libraries.GetItemList(new MediaBrowser.Controller.Entities.InternalItemsQuery
+                    {
+                        AncestorIds = new[] { series.InternalId }, Recursive = true, IncludeItemTypes = new[] { "Season", "Episode" }, Limit = 2000
+                    }, token).Where(child => child is MediaBrowser.Controller.Entities.TV.Season || child is MediaBrowser.Controller.Entities.TV.Episode { ParentIndexNumber: 0 }));
+                foreach (var target in targets)
+                {
+                    token.ThrowIfCancellationRequested();
+                    if (target.IsLocked || !OriginalOverrides.Apply(target)) continue;
+                    libraries.UpdateItems(new() { target }, null, ItemUpdateType.MetadataEdit, true, false, null, token);
+                    Logger.Info("[StrmAssistantRebuild] Original override files applied to {0} {1}.", target.GetType().Name, target.InternalId);
+                }
                 return Task.CompletedTask;
             });
         if (options.PinyinSortName && !item.IsFieldLocked(MediaBrowser.Model.Entities.MetadataFields.SortName))

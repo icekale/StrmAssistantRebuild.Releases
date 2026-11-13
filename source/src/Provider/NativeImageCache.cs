@@ -184,6 +184,11 @@ public static class NativeImageCache
         }
         return null;
     }
+    internal static bool OwnFiles(string folder)
+    {
+        try { return Directory.Exists(folder) && Directory.EnumerateFiles(folder).Any(f => Mime.ContainsKey(Path.GetExtension(f).ToLowerInvariant())); }
+        catch { return false; }
+    }
     internal static string? Find(string folder, ImageType type)
     {
         if (!Directory.Exists(folder)) return null;
@@ -226,7 +231,9 @@ public static class NativeImageCache
                     if (downloadedImages.Contains(type) || !replaceAllImages && item.HasImage(type)) { satisfied.Add(type); continue; }
                     var file = Find(folder, type);
                     var fromOriginal = false;
-                    if (file == null) { file = FindOriginal(state.OriginalRoot, item, type); fromOriginal = file != null; }
+                    // M164: once the rebuild caches this item itself, the original-layout files are only the mirror it writes for
+                    // switching back; a missing type then goes to the provider instead of the mirror.
+                    if (file == null && !OwnFiles(folder)) { file = FindOriginal(state.OriginalRoot, item, type); fromOriginal = file != null; }
                     if (file == null) continue;
                     // Same as the original: a synchronous restore inside the prefix (Task.Run(...).Result).
                     var ok = Task.Run(async () =>
@@ -288,7 +295,7 @@ public static class NativeImageCache
                     var info = new FileInfo(image.Path);
                     var extension = Path.GetExtension(info.Name).ToLowerInvariant();
                     if (!Mime.ContainsKey(extension) || info.Length <= 0 || info.Length > MaxFileBytes) continue;
-                    Store(state, write.Folder, type, extension, info.Length, temp => File.Copy(info.FullName, temp, true));
+                    Store(state, write.Folder, type, extension, info.Length, temp => File.Copy(info.FullName, temp, true), write.Item);
                 }
                 else if (Uri.TryCreate(image.Path, UriKind.Absolute, out var url) && url.Scheme is "https" or "http")
                     QueueRemote(state, write, type, url.AbsoluteUri);
@@ -300,7 +307,7 @@ public static class NativeImageCache
         }
     }
 
-    private static bool Store(State state, string folder, ImageType type, string extension, long length, Action<string> writeTemp)
+    private static bool Store(State state, string folder, ImageType type, string extension, long length, Action<string> writeTemp, BaseItem? item = null)
     {
         if (Interlocked.Add(ref state.TotalBytes, length) > state.MaxTotalBytes)
         { Interlocked.Add(ref state.TotalBytes, -length); Detail = "Active; cache budget reached, new images not written."; return false; }
@@ -312,7 +319,38 @@ public static class NativeImageCache
         writeTemp(temp);
         File.Move(temp, target, true);
         Interlocked.Increment(ref written);
+        if (item != null) MirrorOriginal(state.Paths, state.OriginalRoot, item, type, target);
         return true;
+    }
+    private static long originalWrites;
+    public static long OriginalWrites => Interlocked.Read(ref originalWrites);
+    /// <summary>
+    /// M164: also keep the image in the original plugin's cache layout ({root}/cache/{tmdb-movies2|tmdb-tv|tmdb-collections}/
+    /// {tmdbId}/images/{poster|clearlogo|landscape|clearart|discart|fanart|banner|season-N}.{ext}, the layout M155 reads) so
+    /// a switch back to the original reuses it. Only the cache branch is written (override is the user's); same-name files of
+    /// another image extension are replaced; identical bytes are left untouched. A mirror fault never affects the rebuild.
+    /// </summary>
+    internal static bool MirrorOriginal(EmbyPathPolicy paths, string originalRoot, BaseItem item, ImageType type, string source)
+    {
+        try
+        {
+            var candidate = OriginalCandidates(originalRoot, item, type).Skip(1).FirstOrDefault(); // [override, cache] -> cache
+            if (candidate.Directory == null) return false;
+            var directory = paths.RequireWritablePath(candidate.Directory);
+            var extension = Path.GetExtension(source).ToLowerInvariant();
+            var target = paths.RequireWritablePath(Path.Combine(directory, candidate.Stem + extension));
+            if (File.Exists(target) && new FileInfo(target).Length == new FileInfo(source).Length && File.ReadAllBytes(target).AsSpan().SequenceEqual(File.ReadAllBytes(source))) return false;
+            Directory.CreateDirectory(directory);
+            foreach (var other in Directory.EnumerateFiles(directory, candidate.Stem + ".*").ToArray())
+                if (Mime.ContainsKey(Path.GetExtension(other).ToLowerInvariant()) && string.Equals(Path.GetFileNameWithoutExtension(other), candidate.Stem, StringComparison.OrdinalIgnoreCase) &&
+                    !string.Equals(other, target, StringComparison.Ordinal)) File.Delete(paths.RequireWritablePath(other));
+            var temp = target + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            File.Copy(source, temp, true);
+            File.Move(temp, target, true);
+            Interlocked.Increment(ref originalWrites);
+            return true;
+        }
+        catch (Exception) { return false; }
     }
     /// <summary>
     /// Library "download images in advance" OFF: native stores only the remote URL (image stub). The same TheMovieDb image
@@ -344,7 +382,7 @@ public static class NativeImageCache
                     }
                     if (buffer.Length == 0 || Volatile.Read(ref active) != state) return;
                     var bytes = buffer.ToArray();
-                    Store(state, write.Folder, type, extension, bytes.Length, temp => File.WriteAllBytes(temp, bytes));
+                    Store(state, write.Folder, type, extension, bytes.Length, temp => File.WriteAllBytes(temp, bytes), write.Item);
                 }
                 finally { RemoteSlots.Release(); }
             }

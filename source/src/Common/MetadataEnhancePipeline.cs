@@ -27,7 +27,21 @@ public sealed class MetadataEnhancePipeline : IDisposable
     private readonly DelayedCatchupQueue pending;
     private readonly DelayedCatchupQueue? pendingSeriesCast;
     private readonly object pendingGate = new();
-    private readonly HashSet<long> pendingEnhancements = new();
+    // M164: queued enhancement per item with a version stamp. A refresh that completes while an earlier batch already holds
+    // the item bumps the version, so the earlier (stale) pass leaves the entry for the later batch instead of consuming it.
+    private readonly Dictionary<long, long> pendingEnhancements = new();
+    private long pendingVersion;
+    public long StaleQueuedPassesSkipped => Interlocked.Read(ref staleSkipped);
+    private long staleSkipped;
+    // M164: a native refresh that completes while this item's enhancement pass is running would be swallowed as our own
+    // event. Enhancement work does not run native refreshes of the same item, so remember it and run one more pass
+    // afterwards. A pass started for that reason does not defer again (no loop even if some enhancer ever did refresh).
+    private readonly Dictionary<long, bool> enhancing = new(); // id -> refreshed during the pass
+    private readonly HashSet<long> deferredPasses = new();
+    // The enhancement's own execution flow: a refresh event raised from inside an enhancer is our own and never deferred.
+    private static readonly AsyncLocal<long> enhancementFlow = new();
+    public long DeferredPasses => Interlocked.Read(ref deferred);
+    private long deferred;
     private static readonly object originGate = new();
     private static readonly Dictionary<long, int> ownOperations = new();
     // Host callbacks need not retain ExecutionContext: suppress only while this item's
@@ -109,11 +123,16 @@ public sealed class MetadataEnhancePipeline : IDisposable
         try
         {
             var item = e.Argument.Item;
-            if (IsOwnOperation(item.InternalId) || !AnyEnabled() || item is not (Movie or Series or Season or Episode or Person) || item.IsLocked) return;
+            if (!AnyEnabled() || item is not (Movie or Series or Season or Episode or Person) || item.IsLocked) return;
+            lock (pendingGate)
+            {
+                if (enhancing.ContainsKey(item.InternalId)) { if (enhancementFlow.Value != item.InternalId) enhancing[item.InternalId] = true; return; }
+            }
+            if (IsOwnOperation(item.InternalId)) return;
             lock (pendingGate)
             {
                 if (IsOwnOperation(item.InternalId)) return;
-                if (pending.Enqueue(item.InternalId, TimeSpan.FromMilliseconds(250))) pendingEnhancements.Add(item.InternalId);
+                if (pending.Enqueue(item.InternalId, TimeSpan.FromMilliseconds(250))) pendingEnhancements[item.InternalId] = ++pendingVersion;
                 else logger.Warn("[StrmAssistantRebuild] Metadata enhancement queue full; item {0} can be retried by task.", item.InternalId);
             }
         }
@@ -122,17 +141,28 @@ public sealed class MetadataEnhancePipeline : IDisposable
     private async Task HandlePending(long[] ids, CancellationToken token)
     {
         var items = new List<BaseItem>();
+        var versions = new Dictionary<long, long>();
         foreach (var id in ids)
         {
             token.ThrowIfCancellationRequested();
             try
             {
-                if (library.GetItemById(id) is { } item && !item.IsLocked) { items.Add(item); continue; }
+                if (library.GetItemById(id) is { } item && !item.IsLocked)
+                {
+                    lock (pendingGate) versions[id] = pendingEnhancements.TryGetValue(id, out var v) ? v : 0;
+                    items.Add(item); continue;
+                }
             }
             catch (Exception ex) { logger.Warn("[StrmAssistantRebuild] Metadata item {0} lookup failed: {1}", id, ex.Message); }
             lock (pendingGate) pendingEnhancements.Remove(id);
         }
-        await queue.RunBatch(items, (item, ct) => EnhanceCore(item, ct, queued: true), new LogProgress(logger), token, true, i => i.InternalId).ConfigureAwait(false);
+        await queue.RunBatch(items, (item, ct) =>
+        {
+            // Re-read the item when its turn comes: the batch may have waited behind other items while the item was refreshed.
+            BaseItem current = item;
+            try { if (library.GetItemById(item.InternalId) is { } fresh) current = fresh; } catch { }
+            return EnhanceCore(current, ct, queued: true, queuedVersion: versions.TryGetValue(item.InternalId, out var v) ? v : 0);
+        }, new LogProgress(logger), token, true, i => i.InternalId).ConfigureAwait(false);
     }
     private (long Id, string Name, string Role, PersonType Type)[]? ReadCastLinks(BaseItem item)
     {
@@ -150,20 +180,48 @@ public sealed class MetadataEnhancePipeline : IDisposable
             return null; // Unknown is not an empty cast and must not prevent other enhancement work.
         }
     }
-    private async Task EnhanceCore(BaseItem item, CancellationToken token, bool queued = false, bool scheduleCast = true)
+    private async Task EnhanceCore(BaseItem item, CancellationToken token, bool queued = false, bool scheduleCast = true, long queuedVersion = 0)
     {
         using var origin = SuppressRefreshEvents(item.InternalId);
         // Checked after acquiring the shared item lock: a direct refresh/apply may have
         // superseded this queued enhancement while it waited for the same item.
-        lock (pendingGate) { if (!pendingEnhancements.Remove(item.InternalId) && queued) return; }
+        lock (pendingGate)
+        {
+            if (!queued) pendingEnhancements.Remove(item.InternalId);
+            else if (!pendingEnhancements.TryGetValue(item.InternalId, out var version)) return;
+            else if (version != queuedVersion) { Interlocked.Increment(ref staleSkipped); return; } // a newer refresh is queued; let that batch run
+            else pendingEnhancements.Remove(item.InternalId);
+            // A pass that is itself the deferred re-run never defers again.
+            if (!deferredPasses.Remove(item.InternalId)) enhancing[item.InternalId] = false;
+        }
+        try { await EnhancePass(item, token, queued, scheduleCast).ConfigureAwait(false); }
+        finally
+        {
+            bool again;
+            lock (pendingGate) { again = enhancing.Remove(item.InternalId, out var refreshed) && refreshed && !token.IsCancellationRequested; }
+            if (again)
+            {
+                lock (pendingGate)
+                {
+                    if (pending.Enqueue(item.InternalId, TimeSpan.FromMilliseconds(250)))
+                    { pendingEnhancements[item.InternalId] = ++pendingVersion; deferredPasses.Add(item.InternalId); Interlocked.Increment(ref deferred); }
+                }
+            }
+        }
+    }
+    private async Task EnhancePass(BaseItem item, CancellationToken token, bool queued, bool scheduleCast)
+    {
         if (!item.IsLocked && (!queued || AnyEnabled()))
         {
             var observeCast = queued && pendingSeriesCast != null && options().EnhanceMovieDbPerson &&
                 item is Series or Season { IndexNumber: > 0 };
             var beforeCast = observeCast ? ReadCastLinks(item) : null;
+            var previousFlow = enhancementFlow.Value;
+            enhancementFlow.Value = item.InternalId;
             try { await enhance(item, token).ConfigureAwait(false); }
             finally
             {
+                enhancementFlow.Value = previousFlow;
                 // Explicit work owns one fallback. Queued work only propagates an actual committed
                 // link change, including partial success before another enhancer fails; not a no-op or rollback.
                 if (!token.IsCancellationRequested && (scheduleCast && !queued ||

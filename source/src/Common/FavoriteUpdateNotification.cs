@@ -13,7 +13,7 @@ namespace StrmAssistantRebuild.Common;
 /// <summary>Opt-in notifications for newly added visible favorites or episodes of favorite series.</summary>
 public sealed class FavoriteUpdateNotification : IDisposable
 {
-    public const string EventId="strmassistant.rebuild.favorites.updated";
+    public const string EventId=OriginalNotifications.Favorites; // M164: original event id
     private readonly ILibraryManager library;
     private readonly IUserManager users;
     private readonly IUserDataManager data;
@@ -68,7 +68,7 @@ public sealed class FavoriteUpdateNotification : IDisposable
                 var user=users.GetUserById(recipient.InternalId);
                 if(user?.Policy?.IsDisabled!=false||user.InternalId!=recipient.InternalId||!Visible(item,user,token))continue;
                 token.ThrowIfCancellationRequested();if(Volatile.Read(ref disposed)!=0)return;
-                notifications.SendNotification(new NotificationRequest{EventId=EventId,User=user,Item=item,Title=Title(CultureInfo.CurrentUICulture.Name),Description=item.GetClientTypeName(),CancellationToken=token});
+                notifications.SendNotification(new NotificationRequest{EventId=EventId,User=user,Item=item,Title=Title(CultureInfo.CurrentUICulture.Name),Description=OriginalNotifications.FavoritesDescription(item.Path,user.Name,CultureInfo.CurrentUICulture.Name),CancellationToken=token});
                 Interlocked.Increment(ref emitted);
             }
             catch(OperationCanceledException) when(token.IsCancellationRequested){throw;}
@@ -100,7 +100,5 @@ public sealed class FavoriteUpdateNotification : IDisposable
         return false;
     }
     public void Dispose(){if(Interlocked.Exchange(ref disposed,1)!=0)return;library.ItemAdded-=OnAdded;queue.Dispose();}
-    public static string Title(string? language)=>language?.StartsWith("zh",StringComparison.OrdinalIgnoreCase)==true
-        ? language.Contains("Hant",StringComparison.OrdinalIgnoreCase)||language.Equals("zh-TW",StringComparison.OrdinalIgnoreCase)||language.Equals("zh-HK",StringComparison.OrdinalIgnoreCase)?"收藏內容有更新":"收藏内容有更新"
-        : "Favorite content updated";
+    public static string Title(string? language)=>OriginalNotifications.Title(EventId,language);
 }

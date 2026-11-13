@@ -18,7 +18,7 @@ namespace StrmAssistantRebuild.Common;
 /// <summary>Selected metadata fields after a successful native editor POST; not automatic refresh tracking.</summary>
 public static class MetadataEditNotification
 {
-    public const string EventId = "strmassistant.rebuild.metadata.updated";
+    public const string EventId = OriginalNotifications.Metadata; // M164: original event id
     private const string Owner = "StrmAssistantRebuild.MetadataEdit.4.10.2";
     private static readonly object Gate = new();
     private static Harmony? patcher;
@@ -140,11 +140,9 @@ public static class MetadataEditNotification
             if(actor==null||!state.Settings.Library.FilterItemsToIdsForUser(new[]{item},actor,null,state.Token).Contains(item.InternalId))return;
             if(state.Token.IsCancellationRequested||!ReferenceEquals(state.Settings,Volatile.Read(ref current)))return;
             state.Settings.Notifications.SendNotification(new NotificationRequest{EventId=EventId,User=actor,Item=item,
-                Title=Title(state.Culture.Name),Description=string.Join(", ",fields),CancellationToken=state.Token});
+                Title=Title(state.Culture.Name),Description=OriginalNotifications.MetadataDescription(item.Name,item.InternalId,fields),CancellationToken=state.Token});
         }
         catch { /* Notification failure never converts a committed metadata edit to a failed API call. */ }
     }
-    public static string Title(string? language) => language?.StartsWith("zh",StringComparison.OrdinalIgnoreCase)==true
-        ? language.Contains("Hant",StringComparison.OrdinalIgnoreCase)||language.Equals("zh-TW",StringComparison.OrdinalIgnoreCase)||language.Equals("zh-HK",StringComparison.OrdinalIgnoreCase)?"中繼資料欄位已更新":"元数据字段已更新"
-        : "Metadata fields updated";
+    public static string Title(string? language) => OriginalNotifications.Title(EventId, language);
 }

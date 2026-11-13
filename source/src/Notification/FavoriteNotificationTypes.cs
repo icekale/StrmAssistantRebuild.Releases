@@ -8,6 +8,6 @@ public sealed class FavoriteNotificationTypes : INotificationTypeFactory
 {
     public List<NotificationTypeInfo> GetNotificationTypes(string language) => new()
     {
-        new NotificationTypeInfo { Id=FavoriteUpdateNotification.EventId,Name=FavoriteUpdateNotification.Title(language),CategoryId="strmassistant.rebuild",CategoryName="Strm Assistant Rebuild" }
+        new NotificationTypeInfo { Id=FavoriteUpdateNotification.EventId,Name=OriginalNotifications.EventName(FavoriteUpdateNotification.EventId,language),CategoryId=OriginalNotifications.CategoryId,CategoryName=OriginalNotifications.PluginName(language) }
     };
 }

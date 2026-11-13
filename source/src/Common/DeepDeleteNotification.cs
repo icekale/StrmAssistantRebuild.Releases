@@ -12,7 +12,7 @@ namespace StrmAssistantRebuild.Common;
 /// <summary>Notification for the local deep-delete subset after target retirement and repository commit.</summary>
 public sealed class DeepDeleteNotification
 {
-    public const string EventId="strmassistant.rebuild.deepdelete.completed";
+    public const string EventId=OriginalNotifications.DeepDelete; // M164: original event id
     private readonly ILibraryManager library;
     private readonly IUserManager users;
     private readonly INotificationManager notifications;
@@ -56,19 +56,17 @@ public sealed class DeepDeleteNotification
         try
         {
             token.ThrowIfCancellationRequested();if(!enabled()||pending.Item.InternalId!=pending.ItemId)return;
-            var count=retired.Where(p=>!string.IsNullOrEmpty(p.Archive)&&p.Source!=p.Archive&&pending.Targets.Contains(p.Source,StringComparer.Ordinal)).Select(p=>p.Source).Distinct(StringComparer.Ordinal).Count();
-            if(count==0)return;
+            var removed=retired.Where(p=>!string.IsNullOrEmpty(p.Archive)&&p.Source!=p.Archive&&pending.Targets.Contains(p.Source,StringComparer.Ordinal)).Select(p=>p.Source).Distinct(StringComparer.Ordinal).ToArray();
+            if(removed.Length==0)return;
             var user=users.GetUserById(pending.UserId);
             if(user?.InternalId!=pending.UserId||user.Policy?.IsDisabled!=false)return;
             token.ThrowIfCancellationRequested();
-            notifications.SendNotification(new NotificationRequest{EventId=EventId,User=user,Item=pending.Item,CollectionFolders=pending.CollectionFolders,Title=Title(CultureInfo.CurrentUICulture.Name),Description=$"Local STRM version removed; {count} target file(s) retained as recovery backups.",CancellationToken=token});
+            notifications.SendNotification(new NotificationRequest{EventId=EventId,User=user,Item=pending.Item,CollectionFolders=pending.CollectionFolders,Title=Title(CultureInfo.CurrentUICulture.Name),Description=OriginalNotifications.DeepDeleteDescription(pending.Item.Name,pending.Item.Path,removed,CultureInfo.CurrentUICulture.Name),CancellationToken=token});
             Interlocked.Increment(ref emitted);
         }
         catch(OperationCanceledException) when(token.IsCancellationRequested){ }
         catch(Exception error){Warn(error);}
     }
     private void Warn(Exception error){try{logger.Warn("[DeepDeleteNotification] Notification unavailable: {0}",error.GetType().Name);}catch{}}
-    public static string Title(string? language)=>language?.StartsWith("zh",StringComparison.OrdinalIgnoreCase)==true
-        ? language.Contains("Hant",StringComparison.OrdinalIgnoreCase)||language.Equals("zh-TW",StringComparison.OrdinalIgnoreCase)||language.Equals("zh-HK",StringComparison.OrdinalIgnoreCase)?"本機深度刪除已完成（保留復原備份）":"本地深度删除已完成（保留恢复备份）"
-        : "Local deep-delete completed (recovery backups retained)";
+    public static string Title(string? language)=>OriginalNotifications.Title(EventId,language);
 }

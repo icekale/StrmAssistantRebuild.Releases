@@ -13,7 +13,7 @@ public sealed class MovieDbResponseCache
         {
             if (id == null || id.Length > 10 || !id.All(c => c is >= '0' and <= '9') ||
                 !int.TryParse(id, NumberStyles.None, CultureInfo.InvariantCulture, out var number) || number < 1) return null;
-            if (kind is not ("movie" or "series" or "season" or "episode") ||
+            if (kind is not ("movie" or "series" or "season" or "episode" or "collection") ||
                 (kind is "season" or "episode") != season.HasValue || (kind == "episode") != episode.HasValue ||
                 season is < 0 or > 10000 || episode is < 1 or > 100000) return null;
             language ??= "";
@@ -60,6 +60,7 @@ public sealed class MovieDbResponseCache
         var (folder, name) = key.Kind switch
         {
             "movie" => ("tmdb-movies2", "all"),
+            "collection" => ("tmdb-collections", "all"),
             "series" => ("tmdb-tv", "series"),
             "season" => ("tmdb-tv", "season-" + key.Season!.Value.ToString(CultureInfo.InvariantCulture)),
             _ => ("tmdb-tv", "season-" + key.Season!.Value.ToString(CultureInfo.InvariantCulture) + "-episode-" + key.Episode!.Value.ToString(CultureInfo.InvariantCulture))
@@ -181,7 +182,7 @@ public sealed class MovieDbResponseCache
         foreach (var property in data.EnumerateObject()) if (!names.Add(property.Name)) return false;
         static int? Number(JsonElement value, string name) => value.TryGetProperty(name, out var p) && p.TryGetInt32(out var n) ? n : null;
         var id = Number(data, "id");
-        if (id is null or < 1 || (key.Kind is "movie" or "series") && id != key.Id) return false;
+        if (id is null or < 1 || (key.Kind is "movie" or "series" or "collection") && id != key.Id) return false;
         if (key.Season.HasValue && Number(data, "season_number") != key.Season) return false;
         if (key.Episode.HasValue && Number(data, "episode_number") != key.Episode) return false;
         // Season/episode TMDB DTOs omit their parent series id. An optional explicit claim must agree.

@@ -18,7 +18,7 @@ namespace StrmAssistantRebuild.Common;
 /// <summary>Native upload/URL image completion notifications; never alters image or transport behavior.</summary>
 public static class ImageEditNotification
 {
-    public const string EventId = "strmassistant.rebuild.image.updated";
+    public const string EventId = OriginalNotifications.Image; // M164: original event id
     private const string Owner = "StrmAssistantRebuild.ImageEdit.4.10.2";
     private const string Implementation = "Emby.Api.Images.ImageService";
     private const string RemoteImplementation = "Emby.Api.Images.RemoteImageService";
@@ -161,11 +161,9 @@ public static class ImageEditNotification
             var actor=NotificationActor.Current(state.Settings.Users,state.Actor,state.ActorId,requireAdmin:true);
             if(actor==null||!state.Settings.Library.FilterItemsToIdsForUser(new[]{item},actor,null,state.Token).Contains(state.Id))return;
             if(state.Token.IsCancellationRequested || !ReferenceEquals(state.Settings,Volatile.Read(ref current)))return;
-            state.Settings.Notifications.SendNotification(new NotificationRequest{EventId=EventId,User=actor,Item=item,Title=Title(state.Language),Description=state.ImageType.ToString(),CancellationToken=state.Token});
+            state.Settings.Notifications.SendNotification(new NotificationRequest{EventId=EventId,User=actor,Item=item,Title=Title(state.Language),Description=OriginalNotifications.ImageDescription(state.ImageType,state.Language),CancellationToken=state.Token});
         }
         catch{/* An optional notification failure must not turn a completed image save into a failed request. */}
     }
-    public static string Title(string? language) => language?.StartsWith("zh",StringComparison.OrdinalIgnoreCase)==true
-        ? language.Contains("Hant",StringComparison.OrdinalIgnoreCase)||language.Equals("zh-TW",StringComparison.OrdinalIgnoreCase)||language.Equals("zh-HK",StringComparison.OrdinalIgnoreCase)?"圖片已更新":"图片已更新"
-        : "Image updated";
+    public static string Title(string? language) => OriginalNotifications.Title(EventId, language);
 }

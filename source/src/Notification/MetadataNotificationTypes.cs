@@ -9,8 +9,8 @@ public sealed class MetadataNotificationTypes : INotificationTypeFactory
     public List<NotificationTypeInfo> GetNotificationTypes(string language)
     {
         var types=new List<NotificationTypeInfo>();
-        if(MetadataEditNotification.IsEnabled) types.Add(new NotificationTypeInfo {Id=MetadataEditNotification.EventId,Name=MetadataEditNotification.Title(language),CategoryId="strmassistant.rebuild",CategoryName="Strm Assistant Rebuild"});
-        if(ImageEditNotification.IsEnabled) types.Add(new NotificationTypeInfo {Id=ImageEditNotification.EventId,Name=ImageEditNotification.Title(language),CategoryId="strmassistant.rebuild",CategoryName="Strm Assistant Rebuild"});
+        if(MetadataEditNotification.IsEnabled) types.Add(new NotificationTypeInfo {Id=MetadataEditNotification.EventId,Name=OriginalNotifications.EventName(MetadataEditNotification.EventId,language),CategoryId=OriginalNotifications.CategoryId,CategoryName=OriginalNotifications.PluginName(language)});
+        if(ImageEditNotification.IsEnabled) types.Add(new NotificationTypeInfo {Id=ImageEditNotification.EventId,Name=OriginalNotifications.EventName(ImageEditNotification.EventId,language),CategoryId=OriginalNotifications.CategoryId,CategoryName=OriginalNotifications.PluginName(language)});
         return types;
     }
 }

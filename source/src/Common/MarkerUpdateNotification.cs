@@ -13,7 +13,7 @@ namespace StrmAssistantRebuild.Common;
 /// <summary>Optional native notification after verified playback-derived marker persistence.</summary>
 public sealed class MarkerUpdateNotification
 {
-    public const string EventId="strmassistant.rebuild.markers.updated";
+    public const string EventId=OriginalNotifications.IntroSkip; // M164: original event id
     private readonly ILibraryManager library;
     private readonly IUserManager users;
     private readonly INotificationManager notifications;
@@ -46,7 +46,7 @@ public sealed class MarkerUpdateNotification
             var user=users.GetUserById(userId);
             if(user?.InternalId!=userId||user.Policy?.IsDisabled!=false||!library.FilterItemsToIdsForUser(new[]{request.Item},user,null,token).Contains(source.InternalId))return;
             token.ThrowIfCancellationRequested();
-            await sessions!.SendMessageCommand(session.Id,session.Id,new MessageCommand{Header=request.Title,Text=request.Description,TimeoutMs=500},token).ConfigureAwait(false);
+            await sessions!.SendMessageCommand(session.Id,session.Id,new MessageCommand{Header=request.Title,Text=Messages.TryGetValue(request,out var text)?text:request.Description,TimeoutMs=500},token).ConfigureAwait(false);
             Interlocked.Increment(ref displayed);
         }
         catch(OperationCanceledException) when(token.IsCancellationRequested){ }
@@ -62,11 +62,18 @@ public sealed class MarkerUpdateNotification
         changed.Validate(item.RunTimeTicks);
         if(!library.FilterItemsToIdsForUser(new[]{item},user,null,token).Contains(item.InternalId))return null;
         token.ThrowIfCancellationRequested();
+        // Original text (A----------/AA---------.cs:47280-47760): "{series} - {season} - Intro marker updated" plus times hh:mm:ss.fff and the user.
+        var language=CultureInfo.CurrentUICulture.Name;var series=Safe(item.FindSeriesName,item.SeriesName);var season=Safe(item.FindSeasonName,item.ParentIndexNumber?.ToString(CultureInfo.InvariantCulture));
         var parts=new List<string>();
-        if(changed.HasIntro)parts.Add("Intro: "+TimeSpan.FromTicks(changed.IntroStartTicks!.Value).ToString("c",CultureInfo.InvariantCulture)+" - "+TimeSpan.FromTicks(changed.IntroEndTicks!.Value).ToString("c",CultureInfo.InvariantCulture));
-        if(changed.HasCredits)parts.Add("Credits duration: "+TimeSpan.FromTicks(item.RunTimeTicks.Value-changed.CreditsStartTicks!.Value).ToString("c",CultureInfo.InvariantCulture));
-        return new NotificationRequest{EventId=EventId,User=user,Item=item,Title=Title(CultureInfo.CurrentUICulture.Name),Description=string.Join(Environment.NewLine,parts),CancellationToken=token};
+        if(changed.HasIntro)parts.Add(OriginalNotifications.IntroDescription(series,season,changed.IntroStartTicks!.Value,changed.IntroEndTicks!.Value,user.Name,language));
+        if(changed.HasCredits)parts.Add(OriginalNotifications.CreditsDescription(series,season,item.RunTimeTicks.Value-changed.CreditsStartTicks!.Value,user.Name,language));
+        var message=changed.HasIntro?OriginalNotifications.IntroMessage(series,season,language):OriginalNotifications.CreditsMessage(series,season,language);
+        var request=new NotificationRequest{EventId=EventId,User=user,Item=item,Title=Title(language),Description=string.Join(Environment.NewLine+Environment.NewLine,parts),CancellationToken=token};
+        Messages.AddOrUpdate(request,message);
+        return request;
     }
+    // On-screen message per request (the original showed "{series} - {season} - ... marker updated" in the OSD).
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<NotificationRequest,string> Messages=new();
     private void Dispatch(NotificationRequest request)
     {
         request.CancellationToken.ThrowIfCancellationRequested();notifications.SendNotification(request);Interlocked.Increment(ref emitted);
@@ -87,8 +94,7 @@ public sealed class MarkerUpdateNotification
         }
         catch(Exception error){Warn(item,error);return null;}
     }
+    private static string? Safe(Func<string?> read,string? fallback){try{return read()??fallback;}catch{return fallback;}}
     private void Warn(long item,Exception error){try{logger.Warn("[MarkerUpdate] Notification unavailable for {0}: {1}",item,error.GetType().Name);}catch{}}
-    public static string Title(string? language)=>language?.StartsWith("zh",StringComparison.OrdinalIgnoreCase)==true
-        ? language.Contains("Hant",StringComparison.OrdinalIgnoreCase)||language.Equals("zh-TW",StringComparison.OrdinalIgnoreCase)||language.Equals("zh-HK",StringComparison.OrdinalIgnoreCase)?"片頭片尾標記已更新":"片头片尾标记已更新"
-        : "Intro/credits markers updated";
+    public static string Title(string? language)=>OriginalNotifications.Title(EventId,language);
 }
