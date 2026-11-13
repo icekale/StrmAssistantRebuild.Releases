@@ -104,17 +104,18 @@ public static class MissingEpisodeGroupControl
             var settings = state.Options();
             var groups = state.Groups();
             var reference = searchInfo.GetProviderId(EpisodeGroupService.ProviderKey);
-            if (groups == null || !settings.MovieDbEpisodeGroup || !EpisodeGroupService.HasGroupSource(searchInfo.Path, reference, settings)) return;
-            __result = ReplaceAsync(__result, searchInfo.Path, reference, groups, state.Logger, cancellationToken);
+            var seriesTmdb = searchInfo.GetProviderId(MetadataProviders.Tmdb);
+            if (groups == null || !settings.MovieDbEpisodeGroup || !EpisodeGroupService.HasGroupSource(searchInfo.Path, reference, settings, seriesTmdb)) return;
+            __result = ReplaceAsync(__result, searchInfo.Path, reference, groups, state.Logger, cancellationToken, seriesTmdb);
         }
         catch (Exception error) { try { state.Logger?.Debug("[StrmAssistantRebuild] Missing-episode group skipped: {0}", error.GetType().Name); } catch { } }
     }
 
     internal static async Task<RemoteSearchResult[]> ReplaceAsync(Task<RemoteSearchResult[]> native, string? seriesPath, string? reference,
-        EpisodeGroupService groups, ILogger? logger, CancellationToken token)
+        EpisodeGroupService groups, ILogger? logger, CancellationToken token, string? seriesTmdbId = null)
     {
         EpisodeGroupDocument? document;
-        try { document = await groups.LoadAsync(seriesPath, reference, token).ConfigureAwait(false); }
+        try { document = await groups.LoadAsync(seriesPath, reference, token, seriesTmdbId).ConfigureAwait(false); }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
         catch (Exception error) { logger?.Debug("[StrmAssistantRebuild] Missing-episode group load failed: {0}", error.GetType().Name); document = null; }
         if (document == null || document.Episodes.Count == 0) return await native.ConfigureAwait(false);

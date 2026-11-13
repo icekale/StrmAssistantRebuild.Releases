@@ -144,7 +144,7 @@ public sealed class RuntimeCapabilities
         Set("Activation.LocalDiscovery", Good("Host") && LocalDiscoveryControl.IsEnabled, LocalDiscoveryControl.Detail);
         Set("Activation.NativeHttpRouting", Good("Host") && NativeHttpRouting.IsEnabled, NativeHttpRouting.Detail + " NewHandlers=" + NativeHttpRouting.AppliedNewHandlerCount);
         Set("Activation.NativeMovieDbRouting", Good("Host") && NativeMovieDbRouting.IsEnabled, NativeMovieDbRouting.Detail);
-        Set("Activation.NativeMovieDbCache", Good("Host") && NativeMovieDbCache.IsEnabled, NativeMovieDbCache.Detail + " Original-layout reads=" + NativeMovieDbCache.OriginalReads + ".");
+        Set("Activation.NativeMovieDbCache", Good("Host") && NativeMovieDbCache.IsEnabled, NativeMovieDbCache.Detail + " Original-layout reads=" + NativeMovieDbCache.OriginalReads + "; original patches applied=" + NativeMovieDbCache.PatchesApplied + "; original override files applied (tags/external_ids/episodeorder)=" + (Plugin.Instance?.OriginalOverridesApplied ?? 0) + "; original episodegroup.json reads=" + Provider.EpisodeGroupService.OriginalOverrideReads + ".");
         Set("Activation.NativeImageCache", Good("Host") && Provider.NativeImageCache.IsEnabled, Provider.NativeImageCache.Detail +
             " Restored=" + Provider.NativeImageCache.Restored + " (from the original plugin's layout: " + Provider.NativeImageCache.OriginalRestores + "); remote skipped=" + Provider.NativeImageCache.SkippedRemote + "; written=" + Provider.NativeImageCache.Written + "; background fetch queued=" + Provider.NativeImageCache.RemoteQueued +
             ", pending=" + Provider.NativeImageCache.RemotePending + ", dropped=" + Provider.NativeImageCache.RemoteDropped + ".");

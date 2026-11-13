@@ -33,6 +33,10 @@ public sealed class MovieDbResponseCache
     // ponytail: bounded cache and one writer per process; no unbounded per-key lock registry.
     private static readonly SemaphoreSlim Writer = new(1, 1);
     private sealed record Entry(int Version, Key Key, DateTimeOffset FetchedAt, JsonElement Data);
+    /// <summary>M163: also keep a plain-DTO copy in the original plugin's layout so a switch back to it reuses the cache.</summary>
+    public bool WriteOriginalLayout { get; set; } = true;
+    public long OriginalWrites => Interlocked.Read(ref originalWrites);
+    private long originalWrites;
     public MovieDbResponseCache(EmbyPathPolicy paths, string root, int maxBytes = 2 * 1024 * 1024, long maxTotalBytes = 64 * 1024 * 1024, TimeSpan? maxAge = null)
     {
         if (!Path.IsPathFullyQualified(root)) throw new IOException("Cache root must be absolute.");
@@ -62,6 +66,47 @@ public sealed class MovieDbResponseCache
         };
         return paths.RequireWritablePath(Path.Combine(root, isOverride ? "override" : "cache", folder, key.Id.ToString(CultureInfo.InvariantCulture), name + ".json"));
     }
+    /// <summary>
+    /// M161: the original's patch file (notes/decrypted/A----------/AA---------.cs:10536-11729, path :11683):
+    /// {root}/override/{tmdb-movies2|tmdb-tv}/{tmdbId}/patches/{all|series|season-N|season-N-episode-M}.json.
+    /// </summary>
+    public string PatchPath(Key key)
+    {
+        var target = OriginalPath(key, true);
+        return paths.RequireWritablePath(Path.Combine(Path.GetDirectoryName(target)!, "patches", Path.GetFileName(target)));
+    }
+    public long PatchesApplied => Interlocked.Read(ref patchesApplied);
+    private long patchesApplied;
+    /// <summary>
+    /// Original patch semantics: every top-level property of the patch object whose name is a DTO property replaces that
+    /// property of the fetched or cached DTO (the value is deserialized into the property type; unknown names are ignored).
+    /// Applied for a non-empty request language only, after cache or network; the cache keeps the unpatched DTO. A patch
+    /// that is unreadable, too large, not an object or would change the item identity is ignored.
+    /// </summary>
+    public JsonElement ApplyPatch(JsonElement data, Key key, CancellationToken token)
+    {
+        if (key.Language.Length == 0) return data;
+        string path;
+        try { path = PatchPath(key); } catch (IOException) { return data; }
+        if (!File.Exists(path)) return data;
+        try
+        {
+            var info = new FileInfo(path);
+            if (info.Length > MaxBytes) return data;
+            token.ThrowIfCancellationRequested();
+            using var patch = JsonDocument.Parse(File.ReadAllBytes(path));
+            if (patch.RootElement.ValueKind != JsonValueKind.Object || data.ValueKind != JsonValueKind.Object) return data;
+            var merged = System.Text.Json.Nodes.JsonNode.Parse(data.GetRawText())!.AsObject();
+            foreach (var property in patch.RootElement.EnumerateObject())
+                merged[property.Name] = System.Text.Json.Nodes.JsonNode.Parse(property.Value.GetRawText());
+            using var result = JsonDocument.Parse(merged.ToJsonString());
+            if (!Matches(result.RootElement, key)) return data;
+            Interlocked.Increment(ref patchesApplied);
+            return result.RootElement.Clone();
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception) { return data; }
+    }
     public long OriginalReads => Interlocked.Read(ref originalReads);
     private long originalReads;
     public JsonElement? Read(Key key, bool isOverride, CancellationToken token) => Read(key, isOverride, token, out _);
@@ -73,9 +118,11 @@ public sealed class MovieDbResponseCache
         var original = false;
         if (!File.Exists(target))
         {
-            // Original files never expired and are plain DTOs, like the rebuild's override files.
+            // Original files never expired and are plain DTOs, like the rebuild's override files. Once the rebuild keeps its
+            // own language-keyed file for this item, those (language-less) files are only a mirror for switching back: serving
+            // them for a language the rebuild has not cached yet would mix languages (M163).
             target = OriginalPath(key, isOverride);
-            if (!File.Exists(target)) return null;
+            if (!File.Exists(target) || HasOwnFileForItem(key, isOverride) || Mirrored.ContainsKey(ItemIdentity(key))) return null;
             original = true;
         }
         using var file = new FileStream(paths.RequireWritablePath(target), FileMode.Open, FileAccess.Read, FileShare.Read | FileShare.Delete);
@@ -108,6 +155,24 @@ public sealed class MovieDbResponseCache
             root.TryGetProperty(name, out var language) && language.ValueKind == JsonValueKind.String && language.GetString() is { Length: >= 2 and <= 35 } text)
             seriesOriginalLanguage = text;
         return data.Clone();
+    }
+    // M163: mirrors this process wrote in the original layout. They are only for switching back to the original plugin, never
+    // a substitute for the rebuild's own language-keyed entries (the original files have no language in their name).
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, byte> Mirrored = new();
+    private static string ItemIdentity(Key key) => key.Kind + ":" + key.Id.ToString(CultureInfo.InvariantCulture);
+    /// <summary>Any language of this item already cached by the rebuild in its own layout.</summary>
+    private bool HasOwnFileForItem(Key key, bool isOverride)
+    {
+        try
+        {
+            var directory = Path.GetDirectoryName(FilePath(key, isOverride))!;
+            if (!Directory.Exists(directory)) return false;
+            var prefix = key.Kind == "season" || key.Kind == "episode"
+                ? "series-" + key.Id.ToString(CultureInfo.InvariantCulture) + "-"
+                : key.Kind + "-" + key.Id.ToString(CultureInfo.InvariantCulture) + "-";
+            return Directory.EnumerateFiles(directory, prefix + "*.json").Any();
+        }
+        catch { return false; }
     }
     public static bool Matches(JsonElement data, Key key)
     {
@@ -171,12 +236,68 @@ public sealed class MovieDbResponseCache
                 File.Replace(paths.RequireWritablePath(temp), paths.RequireWritablePath(target), paths.RequireWritablePath(target + ".bak"));
             else File.Move(paths.RequireWritablePath(temp), paths.RequireWritablePath(target));
             temp = null;
+            if (WriteOriginalLayout) await WriteOriginalAsync(key, value, token).ConfigureAwait(false);
         }
         finally
         {
             try { if (temp != null) File.Delete(paths.RequireWritablePath(temp)); }
             finally { Writer.Release(); }
         }
+    }
+    /// <summary>
+    /// M163: the original plugin wrote its cache as a plain DTO at {root}/cache/{tmdb-movies2|tmdb-tv}/{id}/{name}.json with no
+    /// language in the name and no expiry (A----------/A----------.cs:114448). The rebuild keeps its own language-keyed file
+    /// (read first) and additionally writes that plain copy, unchanged when the bytes already match. Override files are the
+    /// user's and never written. A copy fault never fails the rebuild's own cache write.
+    /// </summary>
+    private async Task WriteOriginalAsync<T>(Key key, T value, CancellationToken token)
+    {
+        string? temp = null;
+        try
+        {
+            using var bytes = new BoundedMemoryStream(MaxBytes);
+            JsonSerializer.Serialize(new Utf8JsonWriter(bytes), value); bytes.Flush();
+            using var document = JsonDocument.Parse(bytes.ToArray());
+            if (!Matches(document.RootElement, key)) return;
+            var target = OriginalPath(key, false);
+            if (File.Exists(target))
+            {
+                var existing = new FileInfo(target);
+                if (existing.Length > 0 && existing.Length < MaxBytes)
+                {
+                    using var current = File.OpenRead(target);
+                    if (current.Length == bytes.Length)
+                    {
+                        var buffer = new byte[bytes.Length];
+                        var read = 0;
+                        while (read < buffer.Length)
+                        {
+                            var got = current.Read(buffer, read, buffer.Length - read);
+                            if (got <= 0) break;
+                            read += got;
+                        }
+                        if (read == buffer.Length && bytes.ToArray().AsSpan().SequenceEqual(buffer)) return;
+                    }
+                }
+            }
+            var directory = paths.RequireWritablePath(Path.GetDirectoryName(target)!);
+            Directory.CreateDirectory(directory);
+            temp = paths.RequireWritablePath(target + "." + Guid.NewGuid().ToString("N") + ".tmp");
+            await using (var output = new FileStream(temp, FileMode.CreateNew, FileAccess.Write, FileShare.None, 8192, true))
+            {
+                bytes.Position = 0; await bytes.CopyToAsync(output, 8192, token).ConfigureAwait(false); await output.FlushAsync(token).ConfigureAwait(false);
+            }
+            token.ThrowIfCancellationRequested();
+            if (File.Exists(paths.RequireWritablePath(target)))
+                File.Replace(paths.RequireWritablePath(temp), paths.RequireWritablePath(target), paths.RequireWritablePath(target + ".bak"));
+            else File.Move(paths.RequireWritablePath(temp), paths.RequireWritablePath(target));
+            temp = null;
+            Mirrored.TryAdd(ItemIdentity(key), 0);
+            Interlocked.Increment(ref originalWrites);
+        }
+        catch (OperationCanceledException) { throw; }
+        catch (Exception) { /* A compatibility copy never changes the rebuild's own cache. */ }
+        finally { if (temp != null) { try { File.Delete(paths.RequireWritablePath(temp)); } catch { } } }
     }
     private sealed class BoundedMemoryStream : MemoryStream
     {
@@ -186,5 +307,51 @@ public sealed class MovieDbResponseCache
         public override void Write(ReadOnlySpan<byte> buffer) { Check(buffer.Length); base.Write(buffer); }
         public override void WriteByte(byte value) { Check(1); base.WriteByte(value); }
         private void Check(int count) { if (Position > maximum - count) throw new IOException("Cache JSON size limit."); }
+    }
+    /// <summary>
+    /// M162: the original's "clear recent TMDB cache" (notes/decrypted/A----------/A----------.cs:116723-116790): on startup,
+    /// when MetadataEnhanceOptions.ClearRecentTmdbCacheOnStartup is set, delete *.json under Emby's own cache folder
+    /// {CachePath}/tmdb-movies2 and {CachePath}/tmdb-tv written in the last six hours, and (MovieDb 1.9.2.0 or later) every
+    /// file under {CachePath}/httpclient. Missing folders are skipped; per-file faults are counted and swallowed.
+    /// Rebuild difference: the flag is never set automatically (the original set it when it patched MovieDb.dll); a user or
+    /// the settings file must set it, and it is cleared again after the run.
+    /// </summary>
+    public static (int Deleted, int Failed) ClearRecentTmdbHttpCache(EmbyPathPolicy paths, string? cachePath, Version? movieDbVersion, DateTimeOffset now, CancellationToken token)
+    {
+        var deleted = 0; var failed = 0;
+        if (string.IsNullOrWhiteSpace(cachePath) || !Path.IsPathFullyQualified(cachePath)) return (0, 0);
+        var cutoff = now - TimeSpan.FromHours(6);
+        var roots = new List<(string Directory, string? Pattern)>
+        {
+            (Path.Combine(cachePath, "tmdb-movies2"), "*.json"),
+            (Path.Combine(cachePath, "tmdb-tv"), "*.json")
+        };
+        if (movieDbVersion != null && movieDbVersion >= new Version(1, 9, 2, 0)) roots.Add((Path.Combine(cachePath, "httpclient"), null));
+        foreach (var (directory, pattern) in roots)
+        {
+            token.ThrowIfCancellationRequested();
+            try
+            {
+                if (!Directory.Exists(directory)) continue;
+                IEnumerable<string> files = pattern == null
+                    ? Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories)
+                    : Directory.EnumerateFiles(directory, pattern, SearchOption.AllDirectories);
+                foreach (var file in files)
+                {
+                    token.ThrowIfCancellationRequested();
+                    try
+                    {
+                        var target = paths.RequireWritablePath(file);
+                        if (new FileInfo(target).LastWriteTimeUtc < cutoff.UtcDateTime) continue;
+                        File.Delete(target); deleted++;
+                    }
+                    catch (OperationCanceledException) { throw; }
+                    catch { failed++; }
+                }
+            }
+            catch (OperationCanceledException) { throw; }
+            catch { failed++; }
+        }
+        return (deleted, failed);
     }
 }

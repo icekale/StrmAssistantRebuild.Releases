@@ -24,10 +24,11 @@ public static class NativeMovieDbCache
     private sealed record Contract(string Kind, MethodInfo Method, MethodInfo Move, Type Dto,
         Func<JsonElement, object> Completed, Func<object, Request, object> Wrap);
     private sealed record State(Assembly Assembly, CacheMode Mode, MovieDbResponseCache Cache, Contract[] Contracts, MethodInfo[] Barriers, MethodInfo[] MetadataAliases);
-    private sealed record Request(State State, Contract Contract, MovieDbResponseCache.Key Key, CancellationToken Token);
+    private sealed record Request(State State, Contract Contract, MovieDbResponseCache.Key Key, CancellationToken Token) { internal bool Write; }
     public static bool IsEnabled => Volatile.Read(ref active) != null;
     /// <summary>M155: reads served from the original plugin's cache/override layout.</summary>
     public static long OriginalReads => Volatile.Read(ref active)?.Cache.OriginalReads ?? 0;
+    public static long PatchesApplied => Volatile.Read(ref active)?.Cache.PatchesApplied ?? 0;
     public static string Detail { get; private set; } = "Inactive; native detail retrieval retained.";
 
     public static bool Configure(Version hostVersion, IEnumerable<IPlugin>? plugins, MetadataEnhanceOptions options,
@@ -147,7 +148,8 @@ public static class NativeMovieDbCache
             if (json == null && state.Mode == CacheMode.PreferCacheThenOnline) json = Read(request, false, out language);
             if (json.HasValue)
             {
-                var ready = contract.Completed(json.Value);
+                // M161: original patches/ file applied over the cached or override DTO.
+                var ready = contract.Completed(state.Cache.ApplyPatch(json.Value, key, token));
                 token.ThrowIfCancellationRequested();
                 __result = ready;
                 // Observation is separate from cache decoding: a poster bridge fault must not turn a hit into HTTP.
@@ -158,7 +160,9 @@ public static class NativeMovieDbCache
                 catch (Exception) { }
                 return false;
             }
-            if (state.Mode is CacheMode.PreferCacheThenOnline or CacheMode.PreferOnlineWithCache) __state = request;
+            request.Write = state.Mode is CacheMode.PreferCacheThenOnline or CacheMode.PreferOnlineWithCache;
+            // M161: online results also get the original patch (any non-None mode); only the two caching modes write.
+            if (request.Write || File.Exists(state.Cache.PatchPath(key))) __state = request;
         }
         catch (Exception) { __state = null; } // Cache/setup faults fall through to the original call, not another network client.
         return true;
@@ -183,6 +187,7 @@ public static class NativeMovieDbCache
         // This await is outside the cache catch: faults/cancellation belong to the native provider and propagate unchanged.
         var result = await original.ConfigureAwait(false);
         if (result == null || request.Token.IsCancellationRequested || !ReferenceEquals(Volatile.Read(ref active), request.State)) return result;
+        if (!request.Write) return Patched(result, request);
         string? language = null;
         Func<bool>? posterActive = null;
         try
@@ -199,7 +204,19 @@ public static class NativeMovieDbCache
                 () => ReferenceEquals(Volatile.Read(ref active), request.State) && (language == null || posterActive?.Invoke() == true), language).ConfigureAwait(false);
         }
         catch (Exception) { /* A cache fault never changes a successfully completed native DTO. */ }
-        return result;
+        return Patched(result, request);
+    }
+    /// <summary>The cache keeps the native DTO; the caller receives it with the original patch applied (if any).</summary>
+    private static T Patched<T>(T result, Request request)
+    {
+        try
+        {
+            if (!File.Exists(request.State.Cache.PatchPath(request.Key))) return result;
+            var data = JsonSerializer.SerializeToElement(result);
+            var patched = request.State.Cache.ApplyPatch(data, request.Key, request.Token);
+            return patched.ValueKind == JsonValueKind.Undefined || patched.GetRawText() == data.GetRawText() ? result : patched.Deserialize<T>() ?? result;
+        }
+        catch (Exception) { return result; } // A patch fault never changes a successfully completed native DTO.
     }
     private static void CallerBarrier() { }
     private static MethodInfo Barrier(Assembly assembly, int token, int length, string hash)

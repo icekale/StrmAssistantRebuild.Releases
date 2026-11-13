@@ -115,6 +115,7 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
         users = userManager;
         notifications = notificationManager;
         Paths = new EmbyPathPolicy(applicationPaths.ProgramSystemPath, applicationPaths.ProgramDataPath);
+        embyCachePath = applicationPaths.CachePath;
         webRoot = string.IsNullOrWhiteSpace(serverConfiguration.Configuration.DashboardSourcePath)
             ? Path.Combine(serverConfiguration.ApplicationPaths.ApplicationResourcesPath, "dashboard-ui") : serverConfiguration.Configuration.DashboardSourcePath;
         assetBackupRoot = Path.Combine(applicationPaths.PluginConfigurationsPath, "StrmAssistantRebuild", "dashboard-backups");
@@ -195,6 +196,9 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
                 (item, token) => MaintenanceService.ScanExternalTracksAsync(item, token),
                 (item, stamp) => { item.DateModified = stamp; libraries.UpdateItems(new List<MediaBrowser.Controller.Entities.BaseItem> { item }, null!, ItemUpdateType.None, false, false, null!, CancellationToken.None); }));
             MetadataEnhancePipeline.TaskItemMarks = ExclusiveEligibility.EnterTaskItem; // M160 original task item marks
+            // M161 original override/tmdb-tv/{id}/episodegroup.json (cache mode not None).
+            Provider.EpisodeGroupService.OriginalOverrideRoot = () =>
+                string.Equals(MetadataStore.GetOptions().MetadataBuildOptions.MetadataCacheMode, "None", StringComparison.OrdinalIgnoreCase) ? null : MetadataCacheRoot();
             PatchHealth.Record("IntroRefreshBridge", IntroRefreshBridge.Configure(host.ApplicationVersion, true, this, libraryManager, userManager, taskManager, Logger, out var refreshBridge));
             Logger.Info("[StrmAssistantRebuild] {0}", refreshBridge);
             MarkerNotifications = new MarkerUpdateNotification(libraryManager,userManager,notifications,Logger,sessionManager);
@@ -360,6 +364,20 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
             RefreshWebAssets();
         }
         catch (Exception ex) { Logger.Warn("[StrmAssistantRebuild] Web enhancements degraded: {0}", ex.Message); }
+        try
+        {
+            // M162: original startup option, one shot (the original set it when it patched MovieDb.dll).
+            var metadata = MetadataStore.GetOptions();
+            if (metadata.ClearRecentTmdbCacheOnStartup)
+            {
+                var movieDb = host.Plugins.FirstOrDefault(p => p.GetType().FullName == "MovieDb.Plugin" && p.Name == "TheMovieDb");
+                var (deleted, failed) = Common.MovieDbResponseCache.ClearRecentTmdbHttpCache(Paths, embyCachePath, movieDb?.Version, DateTimeOffset.UtcNow, dashboardLifetime.Token);
+                metadata.ClearRecentTmdbCacheOnStartup = false;
+                MetadataStore.Save(metadata);
+                Logger.Info("[StrmAssistantRebuild] Recent TMDB HTTP cache cleared: deleted={0}, failed={1}.", deleted, failed);
+            }
+        }
+        catch (Exception ex) { Logger.Warn("[StrmAssistantRebuild] Recent TMDB cache cleanup skipped: {0}", ex.Message); }
         _ = EpisodeScopeStartupRecovery.Start(dashboardLifetime.Token);
         Logger.Info("[StrmAssistantRebuild] Settings, Web assets and official media services initialized.");
     }
@@ -388,6 +406,13 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
         });
         if (NfoActorService != null) await Part("nfo-actor", async () => { await NfoActorService.ApplyAsync(item, token).ConfigureAwait(false); });
         var options = MetadataStore.GetOptions();
+        // M161: original override tags/external_ids/episodeorder files (ChineseMovieDb on, cache mode not None).
+        if (options.ChineseMovieDb && !string.Equals(options.MetadataBuildOptions.MetadataCacheMode, "None", StringComparison.OrdinalIgnoreCase))
+            await Part("original-overrides", () =>
+            {
+                if (OriginalOverrides.Apply(item)) libraries.UpdateItems(new() { item }, null, ItemUpdateType.MetadataEdit, true, false, null, token);
+                return Task.CompletedTask;
+            });
         if (options.PinyinSortName && !item.IsFieldLocked(MediaBrowser.Model.Entities.MetadataFields.SortName))
         {
             var sort = PinyinUtility.GenerateSortName(item.Name, item is MediaBrowser.Controller.Entities.Audio.MusicArtist);
@@ -577,6 +602,15 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
             MetadataStore.GetOptions().EnableDoubanAssistScraping, out var detail));
         Logger.Info("[StrmAssistantRebuild] {0}", detail);
     }
+    internal string MetadataCacheRoot()
+    {
+        var configured = MetadataStore.GetOptions().MetadataBuildOptions.MetadataCacheRootFolder?.Trim();
+        return string.IsNullOrWhiteSpace(configured) ? Path.Combine(Path.GetDirectoryName(MetadataStore.OptionsFilePath)!, "metadata-cache") : configured;
+    }
+    private Provider.OriginalOverrideFiles? originalOverrides;
+    private readonly string embyCachePath;
+    internal Provider.OriginalOverrideFiles OriginalOverrides => originalOverrides ??= new Provider.OriginalOverrideFiles(MetadataCacheRoot);
+    internal long OriginalOverridesApplied => originalOverrides?.Applied ?? 0;
     private bool? lastDoubanChannel;
     /// <summary>
     /// M157 default file-change cleanup (original "Exclusive Delete on Change", A----------.cs:102844-102957): an item that
@@ -770,6 +804,7 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
         DeepDeleteControl.Disable();
         ExclusiveFileChange.Configure(null);
         MetadataEnhancePipeline.TaskItemMarks = null;
+        Provider.EpisodeGroupService.OriginalOverrideRoot = null;
         Provider.NativeChannelItemRefresh.Disable();
         Provider.DoubanChannelService.Current = null;
         ScopeSelection.ConfigureUsers(null);

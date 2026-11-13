@@ -124,19 +124,46 @@ public sealed class EpisodeGroupService
     }
 
     public static bool HasGroupSource(Series? series, MetadataEnhanceOptions settings) =>
-        series != null && HasGroupSource(series.Path, series.GetProviderId(ProviderKey), settings);
+        series != null && HasGroupSource(series.Path, series.GetProviderId(ProviderKey), settings, series.GetProviderId(MetadataProviders.Tmdb));
     /// <summary>Same rule from a series path and group reference (e.g. a SeriesInfo lookup).</summary>
-    public static bool HasGroupSource(string? seriesPath, string? reference, MetadataEnhanceOptions settings) =>
-        !string.IsNullOrWhiteSpace(reference) || settings.LocalEpisodeGroup && !string.IsNullOrWhiteSpace(seriesPath) &&
+    public static bool HasGroupSource(string? seriesPath, string? reference, MetadataEnhanceOptions settings, string? seriesTmdbId = null) =>
+        !string.IsNullOrWhiteSpace(reference) || OriginalOverridePath(seriesTmdbId) is { } o && File.Exists(o) ||
+        settings.LocalEpisodeGroup && !string.IsNullOrWhiteSpace(seriesPath) &&
         Path.IsPathRooted(seriesPath) && new[] { "episodegroup.json", "episode-group.json" }.Any(name => File.Exists(Path.Combine(seriesPath, name)));
 
-    public Task<EpisodeGroupDocument?> LoadAsync(Series series, CancellationToken token) =>
-        LoadAsync(series.Path, series.GetProviderId(ProviderKey), token);
+    /// <summary>
+    /// M161: the original's override file override/tmdb-tv/{series TMDB id}/episodegroup.json in the metadata cache
+    /// (notes/decrypted/A----------/A----------.cs:104206, :113990), read first when the cache mode is not None. Set by the
+    /// plugin; returns the cache root or null (mode None).
+    /// </summary>
+    public static Func<string?>? OriginalOverrideRoot { get; set; }
+    public static long OriginalOverrideReads => Interlocked.Read(ref originalOverrideReads);
+    private static long originalOverrideReads;
+    internal static string? OriginalOverridePath(string? seriesTmdbId)
+    {
+        var root = OriginalOverrideRoot?.Invoke();
+        if (string.IsNullOrWhiteSpace(root) || string.IsNullOrWhiteSpace(seriesTmdbId) || seriesTmdbId.Length > 10 || !seriesTmdbId.All(c => c is >= '0' and <= '9')) return null;
+        return Path.Combine(root, "override", "tmdb-tv", seriesTmdbId, "episodegroup.json");
+    }
 
-    public async Task<EpisodeGroupDocument?> LoadAsync(string? seriesPath, string? reference, CancellationToken token)
+    public Task<EpisodeGroupDocument?> LoadAsync(Series series, CancellationToken token) =>
+        LoadAsync(series.Path, series.GetProviderId(ProviderKey), token, series.GetProviderId(MetadataProviders.Tmdb));
+
+    public async Task<EpisodeGroupDocument?> LoadAsync(string? seriesPath, string? reference, CancellationToken token, string? seriesTmdbId = null)
     {
         token.ThrowIfCancellationRequested();
         var settings = options();
+        if (OriginalOverridePath(seriesTmdbId) is { } overridePath && File.Exists(overridePath))
+        {
+            try
+            {
+                await using var stream = File.OpenRead(paths.RequireWritablePath(overridePath));
+                var document = Parse(await MetadataLanguageService.ReadBoundedAsync(stream, 4 * 1024 * 1024, token).ConfigureAwait(false));
+                Interlocked.Increment(ref originalOverrideReads);
+                return document;
+            }
+            catch (Exception ex) when (ex is JsonException or InvalidDataException or IOException) { logger.Debug("Original episodegroup.json override ignored: {0}", ex.GetType().Name); }
+        }
         if (settings.LocalEpisodeGroup && !string.IsNullOrWhiteSpace(seriesPath) && Path.IsPathRooted(seriesPath))
         {
             // Read-only media sidecar; remote cache is never written here.
