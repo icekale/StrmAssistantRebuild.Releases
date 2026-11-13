@@ -164,6 +164,7 @@ public sealed class RuntimeCapabilities
         Set("Activation.NotificationEpisodes", Good("Host") && NotificationEnhancement.IsEnabled, NotificationEnhancement.Detail);
         Set("Activation.MetadataEditNotification", Good("Host") && MetadataEditNotification.IsEnabled, MetadataEditNotification.Detail);
         Set("Activation.ImageEditNotification", Good("Host") && ImageEditNotification.IsEnabled, ImageEditNotification.Detail);
+        Set("Activation.InlineGuard", Good("Host") && NativeInlineGuard.Count >= NativeInlineGuard.Expected, NativeInlineGuard.Detail + " " + NativeInlineGuard.Coverage());
         Set("Activation.ExclusiveEligibility", Good("Host") && ExclusiveMediaControl.IsEnabled, "Original native ffprobe eligibility (M156): features [" + string.Join(",", ExclusiveEligibility.Selected) +
             "]; allowed=" + ExclusiveEligibility.Allowed + "; denied=" + ExclusiveEligibility.Denied + "; without native context=" + ExclusiveEligibility.NoContext + "; native refresh entries=" + ExclusiveSaverControl.NativeEntries + "/" + ExclusiveSaverControl.NativeContexts +
             (ExclusiveEligibility.LastNoContext.Length > 0 ? " (last: " + ExclusiveEligibility.LastNoContext + ")" : "") + "; inline guard: " + NativeInlineGuard.Detail.TrimEnd('.') + ". File changes (M157): seen=" + ExclusiveFileChange.Changes +

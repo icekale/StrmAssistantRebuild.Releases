@@ -12,6 +12,8 @@ public static class OriginalNotifications
 {
     public const string CategoryId = "strm.assistant";
     public const string Favorites = "favorites.update", IntroSkip = "introskip.update", Metadata = "metadata.update", Image = "image.update", DeepDelete = "deep.delete";
+    /// <summary>M166: collection membership events (original AA---------.cs:49070-49400).</summary>
+    public const string CollectionAdded = "collection.items.added", CollectionRemoved = "collection.items.removed";
 
     public static CultureInfo Culture(string? language)
     {
@@ -30,6 +32,8 @@ public static class OriginalNotifications
         Metadata => "Notification_MetadataUpdate_EventName",
         Image => "Notification_ImageUpdate_EventName",
         DeepDelete => "Notification_DeepDelete_EventName",
+        CollectionAdded => "Notification_CollectionItemsAdded_EventName",
+        CollectionRemoved => "Notification_CollectionItemsRemoved_EventName",
         _ => throw new ArgumentOutOfRangeException(nameof(eventId))
     }, Culture(language));
 
@@ -45,6 +49,23 @@ public static class OriginalNotifications
         $"{name} ({internalId}){Environment.NewLine}{Environment.NewLine}Changed Fields:{Environment.NewLine}{string.Join(Environment.NewLine, fields)}";
     public static string DeepDeleteDescription(string? name, string? path, IEnumerable<string> mountPaths, string? language) =>
         string.Format(Culture(language), Lines(Text("Notification_DeepDelete_EventDescription", Culture(language))), name, path, string.Join(Environment.NewLine, mountPaths));
+
+    /// <summary>Original collection description: "Collection: {name} ({id})", a blank line, then one line per changed item:
+    /// "Season: {series} - {season}", "Episode: {series} - {season} - {episode}" (empty parts omitted) or "{Type}: {name}".</summary>
+    public static string CollectionDescription(string? name, long internalId, IEnumerable<CollectionLine> items)
+    {
+        var lines = new List<string> { $"Collection: {name} ({internalId})", string.Empty };
+        foreach (var item in items)
+            lines.Add(item.Kind switch
+            {
+                CollectionLineKind.Season => "Season: " + string.Join(" - ", new[] { item.Series, item.Season }.Where(x => !string.IsNullOrEmpty(x))),
+                CollectionLineKind.Episode => "Episode: " + string.Join(" - ", new[] { item.Series, item.Season, item.Name }.Where(x => !string.IsNullOrEmpty(x))),
+                _ => item.Type + ": " + item.Name
+            });
+        return string.Join(Environment.NewLine, lines);
+    }
+    public enum CollectionLineKind { Other, Season, Episode }
+    public sealed record CollectionLine(CollectionLineKind Kind, string Type, string? Name, string? Series = null, string? Season = null);
 
     /// <summary>Original marker time format (hh:mm:ss.fff).</summary>
     public static string Time(long ticks) => TimeSpan.FromTicks(ticks).ToString(@"hh\:mm\:ss\.fff", CultureInfo.InvariantCulture);

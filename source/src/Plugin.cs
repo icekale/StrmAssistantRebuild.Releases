@@ -85,6 +85,7 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
     public UserPreferenceService? UserPreferenceService { get; private set; }
     public FavoriteUpdateNotification? FavoriteNotifications { get; private set; }
     public MarkerUpdateNotification? MarkerNotifications { get; private set; }
+    public CollectionItemsNotification? CollectionNotifications { get; private set; }
     public MaintenanceService? MaintenanceService { get; private set; }
     public MemoryMonitor? MemoryMonitor { get; private set; }
     public DashboardActivity? Activity { get; private set; }
@@ -165,6 +166,9 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
             UserPreferenceService = new UserPreferenceService(userManager, userViewManager, sessionManager, Logger);
             ConfigureUserExperience();
             FavoriteNotifications = new FavoriteUpdateNotification(libraryManager,userManager,userDataManager,notifications,Logger);
+            CollectionNotifications = new CollectionItemsNotification(libraryManager, notifications, Logger);
+            try { CollectionNotifications.Attach(applicationHost.Resolve<MediaBrowser.Controller.Collections.ICollectionManager>()); }
+            catch (Exception error) { Logger.Warn("Collection notifications unavailable: {0}", error.GetType().Name); }
             MediaInfoApi = new MediaInfoApi(libraryManager, mediaSourceManager, mediaProbeManager, itemRepository, fileSystem, providerManager, Path.Combine(folder, "media-info"), imageProcessor: imageProcessor);
             ChapterApi = new ChapterApi(libraryManager, itemRepository, WorkQueue, Logger, persistMutation: async (item, mutation, token) =>
             {
@@ -747,7 +751,7 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
         var experience = ExperienceStore.GetOptions();
         DashboardAssets?.Refresh(WebOptionsSnapshot.Enabled(media, metadata, intro, experience, SeasonCollectionQuery.IsDoubanFilterEnabled), WebOptionsSnapshot.Create(media, metadata, intro, experience, ConfigurationStore.GetOptions().ModOptions, SeasonCollectionQuery.IsDoubanFilterEnabled, IntroRefreshBridge.IsEnabled));
     }
-    public override void OnUninstalling() { StopEpisodeBatches(); IntroRefreshBridge.Disable(); dashboardLifetime.Cancel(); PlaySessionMonitor?.Dispose(); FavoriteNotifications?.Dispose(); MetadataEditNotification.Remove(); ImageEditNotification.Remove(); SubtitleSearchOptimization.Disable(); PersonDetailRefreshControl.Disable(); SeasonCollectionQuery.Disable(); Provider.NativeSeasonCastControl.Disable(); Provider.NativeMovieDbCache.Disable(); Provider.NativeMovieDbRouting.Disable(); Provider.NativePosterOrdering.Disable(); LocalDiscoveryControl.Disable(); NativeHttpRouting.Disable(); NativeChangedProbeControl.Disable(); ExclusiveRemoteFetcherControl.Disable(); ExclusiveChapterImageControl.Disable(); ExclusiveMediaControl.Disable(); ExclusiveSaverControl.Disable(); StrmThumbnailCompatibility.Disable(); DashboardAssets?.Restore(); base.OnUninstalling(); }
+    public override void OnUninstalling() { StopEpisodeBatches(); IntroRefreshBridge.Disable(); dashboardLifetime.Cancel(); PlaySessionMonitor?.Dispose(); FavoriteNotifications?.Dispose(); CollectionNotifications?.Dispose(); MetadataEditNotification.Remove(); ImageEditNotification.Remove(); SubtitleSearchOptimization.Disable(); PersonDetailRefreshControl.Disable(); SeasonCollectionQuery.Disable(); Provider.NativeSeasonCastControl.Disable(); Provider.NativeMovieDbCache.Disable(); Provider.NativeMovieDbRouting.Disable(); Provider.NativePosterOrdering.Disable(); LocalDiscoveryControl.Disable(); NativeHttpRouting.Disable(); NativeChangedProbeControl.Disable(); ExclusiveRemoteFetcherControl.Disable(); ExclusiveChapterImageControl.Disable(); ExclusiveMediaControl.Disable(); ExclusiveSaverControl.Disable(); StrmThumbnailCompatibility.Disable(); DashboardAssets?.Restore(); base.OnUninstalling(); }
     private void StopEpisodeBatches()
     {
         TaskCompletionSource<bool>? completion=null;Task cleanup;
@@ -793,6 +797,7 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
         IntroRefreshBridge.Disable();
         dashboardLifetime.Cancel();
         FavoriteNotifications?.Dispose();
+        CollectionNotifications?.Dispose();
         DashboardStore.FileSaved -= OnDashboardOptionsSaved;
         if (MemoryMonitor != null) WorkQueue.WorkStarted -= MemoryMonitor.NotifyActivity;
         MemoryMonitor?.Dispose();
