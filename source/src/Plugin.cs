@@ -108,6 +108,8 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
         Instance = this;
         Logger = logManager.GetLogger(Name);
         host = applicationHost;
+        // M165: before host refresh callers become hot, keep the exclusive-mode targets out of tier-1 inlining.
+        NativeInlineGuard.Apply(applicationHost.ApplicationVersion);
         nativeHttpClient = httpClient;
         libraries = libraryManager;
         repository = itemRepository; providers = providerManager; userData = userDataManager; nativeFiles = fileSystem;

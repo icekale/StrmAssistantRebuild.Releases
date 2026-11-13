@@ -371,6 +371,24 @@ public static class ExclusiveSaverControl
         return scope;
     }
 
+    private static long nativeEntries, nativeContexts;
+    /// <summary>M165 diagnostic: native RefreshSingleItem entries seen by the saver hook, and those that created a context.</summary>
+    public static long NativeEntries => Interlocked.Read(ref nativeEntries);
+    public static long NativeContexts => Interlocked.Read(ref nativeContexts);
+    /// <summary>M165 diagnostic: why the current flow has no live native refresh context.</summary>
+    internal static string DescribeScope()
+    {
+        var scope = Current.Value;
+        if (scope == null) return "no scope in this flow";
+        var epoch = Volatile.Read(ref generation);
+        var depth = 0;
+        for (var cursor = scope; cursor != null; cursor = cursor.Parent, depth++)
+        {
+            if (Volatile.Read(ref cursor.Disposed) != 0) return "disposed scope at depth " + depth + (cursor.Refresh?.Item != null ? " (native refresh of " + cursor.Refresh.ItemId + ")" : "");
+            if (cursor.Epoch != epoch) return "stale epoch " + cursor.Epoch + " at depth " + depth + " (current " + epoch + ")";
+        }
+        return "live chain of " + depth + " without a native refresh";
+    }
     private static Scope? LiveScope()
     {
         var scope = Current.Value;
@@ -415,8 +433,10 @@ public static class ExclusiveSaverControl
     private static void RefreshPrefix(object __instance, BaseItem item, MetadataRefreshOptions options, BaseItem[] __2, LibraryOptions libraryOptions, CancellationToken __4, out Scope? __state)
     {
         __state = null;
+        Interlocked.Increment(ref nativeEntries);
         if (enabled && item != null && options != null && libraryOptions != null)
         {
+            Interlocked.Increment(ref nativeContexts);
             var canRestore = Current.Value == null && !ExclusiveMediaControl.IsOwnedOperation;
             var canProbe = Current.Value == null && !ExclusiveMediaControl.HasRawOwnedScope;
             __state = EnterRefreshCore(item, options, libraryOptions, true);
@@ -575,12 +595,8 @@ internal static class NativeChangedProbeControl
                     !FilePin(typeof(MediaSourceInfo).Assembly, "2B7DA29239811F8C035784DF7B3F48A1668E9537784B6524DDE43B3905572617"))
                     return Report(false, "Inactive: native complete PE binding differs.", out detail);
                 var type = assembly.GetType("Emby.Providers.MediaInfo.FFProbeProvider", true)!;
-                var method = type.GetMethod("FetchAsync", new[] { typeof(MetadataResult<Movie>), typeof(CustomMetadataProviderOptions), typeof(CancellationToken) });
-                var body = method?.GetMethodBody(); var il = body?.GetILAsByteArray();
-                if (method == null || method.MetadataToken != 0x06000124 || !method.IsPublic || method.IsStatic || method.ContainsGenericParameters ||
-                    method.ReturnType != typeof(Task<ItemUpdateType>) || method.Module.ModuleVersionId != new Guid("29b37ec2-5f02-443c-a995-1f61c71f43c6") ||
-                    il?.Length != 27 || body!.MaxStackSize != 8 || body.InitLocals || body.LocalSignatureMetadataToken != 0 || body.ExceptionHandlingClauses.Count != 0 ||
-                    Convert.ToHexString(SHA256.HashData(il)) != "93B7C8DA49BC25ABF3DDE6578EC9D5B8145CFA4D418AF1CC85D48FE3C634E9DF" || Harmony.GetPatchInfo(method)?.Owners.Any() == true)
+                var method = Target(assembly);
+                if (method == null || !VerifyTarget(method) || Harmony.GetPatchInfo(method)?.Owners.Any() == true)
                     return Report(false, "Inactive: exact public Movie Fetch124 pin/ownership differs.", out detail);
                 var next = new Binding(manager, library, files, options, type);
                 if (!next.Registered() || !ExclusiveSaverControl.IsHealthy || !ExclusiveMediaControl.IsHealthy || !NativePathUnpatched(method))
@@ -593,6 +609,17 @@ internal static class NativeChangedProbeControl
             }
             catch (Exception e) { DisableCore(); return Report(false, "Inactive: bounded native probe " + e.GetType().Name, out detail); }
         }
+    }
+    internal static MethodInfo? Target(Assembly assembly) => assembly.GetType("Emby.Providers.MediaInfo.FFProbeProvider", false)?
+        .GetMethod("FetchAsync", new[] { typeof(MetadataResult<Movie>), typeof(CustomMetadataProviderOptions), typeof(CancellationToken) });
+    /// <summary>Exact public Movie Fetch124 pin (ownership is checked separately by Configure).</summary>
+    internal static bool VerifyTarget(MethodInfo method)
+    {
+        var body = method.GetMethodBody(); var il = body?.GetILAsByteArray();
+        return method.MetadataToken == 0x06000124 && method.IsPublic && !method.IsStatic && !method.ContainsGenericParameters &&
+            method.ReturnType == typeof(Task<ItemUpdateType>) && method.Module.ModuleVersionId == new Guid("29b37ec2-5f02-443c-a995-1f61c71f43c6") &&
+            il?.Length == 27 && body!.MaxStackSize == 8 && !body.InitLocals && body.LocalSignatureMetadataToken == 0 && body.ExceptionHandlingClauses.Count == 0 &&
+            Convert.ToHexString(SHA256.HashData(il)) == "93B7C8DA49BC25ABF3DDE6578EC9D5B8145CFA4D418AF1CC85D48FE3C634E9DF";
     }
     private static bool Report(bool ok, string message, out string detail) { Detail = detail = message; return ok; }
     internal static void Disable() { lock (Gate) DisableCore(); }

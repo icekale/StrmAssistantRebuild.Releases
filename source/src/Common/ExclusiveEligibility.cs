@@ -93,6 +93,10 @@ public static class ExclusiveEligibility
     /// <summary>M159: the live native refresh is this item's own (parented file Video/Audio, not plugin-owned).</summary>
     internal static bool InNativeRefreshOf(BaseItem item) => ContextFor(item) != null;
 
+    private static long noContext;
+    /// <summary>M165: non-owned probes that found no live native refresh context (and why, for the last one).</summary>
+    public static long NoContext => Interlocked.Read(ref noContext);
+    public static string LastNoContext { get; private set; } = "";
     private static long remoteSkipped, dynamicSkipped, imagesAllowed;
     public static long RemoteSkipped => Interlocked.Read(ref remoteSkipped);
     public static long DynamicSkipped => Interlocked.Read(ref dynamicSkipped);
@@ -134,7 +138,12 @@ public static class ExclusiveEligibility
     internal static bool AllowNativeProbe()
     {
         var context = ExclusiveSaverControl.CurrentNativeRefresh;
-        if (context is not { } c) return false;
+        if (context is not { } c)
+        {
+            Interlocked.Increment(ref noContext);
+            try { LastNoContext = ExclusiveSaverControl.DescribeScope(); } catch { }
+            return false;
+        }
         var id = c.Item.InternalId;
         var allow = Decide(c.Item, c.Options, c.IsNew, c.Ordinary, AllowAllFor(id), Has(CatchAllBlock, id), Has(UnconditionalBlock, id),
             fileChanged: c.FileChange?.Changed == true, ignoreFileChange: Has(ExclusiveFileChange.IgnoreFileChange, id));

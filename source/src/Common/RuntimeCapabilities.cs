@@ -165,7 +165,8 @@ public sealed class RuntimeCapabilities
         Set("Activation.MetadataEditNotification", Good("Host") && MetadataEditNotification.IsEnabled, MetadataEditNotification.Detail);
         Set("Activation.ImageEditNotification", Good("Host") && ImageEditNotification.IsEnabled, ImageEditNotification.Detail);
         Set("Activation.ExclusiveEligibility", Good("Host") && ExclusiveMediaControl.IsEnabled, "Original native ffprobe eligibility (M156): features [" + string.Join(",", ExclusiveEligibility.Selected) +
-            "]; allowed=" + ExclusiveEligibility.Allowed + "; denied=" + ExclusiveEligibility.Denied + ". File changes (M157): seen=" + ExclusiveFileChange.Changes +
+            "]; allowed=" + ExclusiveEligibility.Allowed + "; denied=" + ExclusiveEligibility.Denied + "; without native context=" + ExclusiveEligibility.NoContext + "; native refresh entries=" + ExclusiveSaverControl.NativeEntries + "/" + ExclusiveSaverControl.NativeContexts +
+            (ExclusiveEligibility.LastNoContext.Length > 0 ? " (last: " + ExclusiveEligibility.LastNoContext + ")" : "") + "; inline guard: " + NativeInlineGuard.Detail.TrimEnd('.') + ". File changes (M157): seen=" + ExclusiveFileChange.Changes +
             "; cleared=" + ExclusiveFileChange.Cleared + "; external track updates=" + ExclusiveFileChange.TrackUpdates + "; date stamps=" + ExclusiveFileChange.StampUpdates + "; completions=" + ExclusiveFileChange.Completions +
             ". Default provider rules (M158): active=" + ExclusiveRemoteFetcherControl.DefaultRulesActive + "; remote skipped=" + ExclusiveEligibility.RemoteSkipped +
             "; screen grabs skipped=" + ExclusiveEligibility.DynamicSkipped + "; native screen grabs allowed=" + ExclusiveEligibility.ImagesAllowed +
