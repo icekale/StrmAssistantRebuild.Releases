@@ -160,6 +160,7 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
             MemoryMonitor.Configure(DashboardStore.GetOptions().MemoryOptions.MemoryUsageLimitMB);
             searchIndexFile = Path.Combine(folder, "search-index.json");
             SearchCoordinator = new SearchCoordinator(new ChineseSearchIndex(libraryManager, Paths, searchIndexFile, Logger), itemRepository, host.ApplicationVersion, Logger);
+            ChineseSearchIndex.MetadataLanguage = () => serverConfiguration.Configuration.PreferredMetadataLanguage;
             SearchCoordinator.Configure(ConfigurationStore.GetOptions().ModOptions);
             UserExperienceService = new UserExperienceService(libraryManager, userDataManager, userManager, sessionManager, Logger,
                 e => MediaCatchup?.OnPlaybackStop(e));
@@ -206,6 +207,7 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
             Provider.EpisodeGroupService.OriginalOverrideRoot = () =>
                 string.Equals(MetadataStore.GetOptions().MetadataBuildOptions.MetadataCacheMode, "None", StringComparison.OrdinalIgnoreCase) ? null : MetadataCacheRoot();
             PatchHealth.Record("IntroRefreshBridge", IntroRefreshBridge.Configure(host.ApplicationVersion, true, this, libraryManager, userManager, taskManager, Logger, out var refreshBridge));
+            ConfigureNativeIntro();
             Logger.Info("[StrmAssistantRebuild] {0}", refreshBridge);
             MarkerNotifications = new MarkerUpdateNotification(libraryManager,userManager,notifications,Logger,sessionManager);
             PlaySessionMonitor = new IntroSkip.PlaySessionMonitor(libraryManager, userManager, sessionManager,
@@ -374,6 +376,7 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
         {
             // M162: original startup option, one shot (the original set it when it patched MovieDb.dll).
             var metadata = MetadataStore.GetOptions();
+            lastChineseMovieDb = metadata.ChineseMovieDb;
             if (metadata.ClearRecentTmdbCacheOnStartup)
             {
                 var movieDb = host.Plugins.FirstOrDefault(p => p.GetType().FullName == "MovieDb.Plugin" && p.Name == "TheMovieDb");
@@ -592,10 +595,34 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
     }
     private void OnWebOptionsSaved(object? sender, FileSavedEventArgs e)
     {
-        if (e.Options is IntroSkipOptions) PlaySessionMonitor?.ResetObservations();
+        if (e.Options is IntroSkipOptions) { PlaySessionMonitor?.ResetObservations(); ConfigureNativeIntro(); }
         if (e.Options is ExperienceEnhanceOptions) ConfigureUserExperience();
-        if (e.Options is MetadataEnhanceOptions) ConfigureNativeMetadata();
+        if (e.Options is MetadataEnhanceOptions metadataOptions) { FlagTmdbCacheClear(metadataOptions); ConfigureNativeMetadata(); }
         RefreshWebAssets(); MediaCatchup?.Configure();
+    }
+    /// <summary>M169: original UnlockIntroSkip hooks into Emby's own intro detection.</summary>
+    private void ConfigureNativeIntro()
+    {
+        var intro = IntroStore.GetOptions();
+        PatchHealth.Record("NativeIntroUnlock", NativeIntroUnlock.Configure(host.ApplicationVersion, intro.UnlockIntroSkip, libraries,
+            () => { var o = IntroStore.GetOptions(); return new NativeIntroUnlock.IntroSkipOptionsView(o.MarkerEnabledLibraryScope, o.FingerprintExcludeKeywords); }, out var detail));
+        Logger.Info("[StrmAssistantRebuild] {0}", detail);
+    }
+    private bool? lastChineseMovieDb;
+    /// <summary>M167: the original sets ClearRecentTmdbCacheOnStartup when it starts its Chinese TheMovieDb handling (options
+    /// handler, notes/decrypted A----------.cs:64924-65090): TMDB responses cached during the last hours in other languages are
+    /// then cleared once at the next startup (M162). The rebuild does this when ChineseMovieDb is switched on.</summary>
+    private void FlagTmdbCacheClear(MetadataEnhanceOptions saved)
+    {
+        try
+        {
+            var previous = lastChineseMovieDb; lastChineseMovieDb = saved.ChineseMovieDb;
+            if (previous != false || !saved.ChineseMovieDb || saved.ClearRecentTmdbCacheOnStartup) return;
+            saved.ClearRecentTmdbCacheOnStartup = true;
+            MetadataStore.Save(saved);
+            Logger.Info("[StrmAssistantRebuild] Chinese TheMovieDb enabled: recent TMDB HTTP cache will be cleared at the next startup.");
+        }
+        catch (Exception ex) { Logger.Warn("[StrmAssistantRebuild] Recent TMDB cache flag not set: {0}", ex.Message); }
     }
     private void ConfigureNativeMetadata()
     {
@@ -653,6 +680,9 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
             libraries.UpdateItems(new List<MediaBrowser.Controller.Entities.BaseItem> { item }, null!, ItemUpdateType.None, true, false, null!, token);
         }
         catch { Web.Service.WebServiceSupport.RestoreRetiredFiles(retired, nativeFiles); throw; }
+        // M167: the original deletes the chapter images; the backups only protect the clear itself and are removed once it is
+        // committed, so repeated file changes do not accumulate backups.
+        Web.Service.WebServiceSupport.DeleteRetiredFiles(retired, nativeFiles);
         if (item is MediaBrowser.Controller.Entities.TV.Episode episode && FingerprintApi != null)
             _ = FingerprintApi.ResetEpisodeFingerprintStateAsync(episode, CancellationToken.None).ContinueWith(t => { if (t.IsFaulted) Logger.Warn("[StrmAssistantRebuild] Fingerprint reset after file change failed: {0}", t.Exception?.GetBaseException().Message); }, TaskScheduler.Default);
         Logger.Info("[StrmAssistantRebuild] Exclusive Delete on Change: {0}", item.Path);
@@ -751,7 +781,7 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
         var experience = ExperienceStore.GetOptions();
         DashboardAssets?.Refresh(WebOptionsSnapshot.Enabled(media, metadata, intro, experience, SeasonCollectionQuery.IsDoubanFilterEnabled), WebOptionsSnapshot.Create(media, metadata, intro, experience, ConfigurationStore.GetOptions().ModOptions, SeasonCollectionQuery.IsDoubanFilterEnabled, IntroRefreshBridge.IsEnabled));
     }
-    public override void OnUninstalling() { StopEpisodeBatches(); IntroRefreshBridge.Disable(); dashboardLifetime.Cancel(); PlaySessionMonitor?.Dispose(); FavoriteNotifications?.Dispose(); CollectionNotifications?.Dispose(); MetadataEditNotification.Remove(); ImageEditNotification.Remove(); SubtitleSearchOptimization.Disable(); PersonDetailRefreshControl.Disable(); SeasonCollectionQuery.Disable(); Provider.NativeSeasonCastControl.Disable(); Provider.NativeMovieDbCache.Disable(); Provider.NativeMovieDbRouting.Disable(); Provider.NativePosterOrdering.Disable(); LocalDiscoveryControl.Disable(); NativeHttpRouting.Disable(); NativeChangedProbeControl.Disable(); ExclusiveRemoteFetcherControl.Disable(); ExclusiveChapterImageControl.Disable(); ExclusiveMediaControl.Disable(); ExclusiveSaverControl.Disable(); StrmThumbnailCompatibility.Disable(); DashboardAssets?.Restore(); base.OnUninstalling(); }
+    public override void OnUninstalling() { StopEpisodeBatches(); IntroRefreshBridge.Disable(); dashboardLifetime.Cancel(); PlaySessionMonitor?.Dispose(); FavoriteNotifications?.Dispose(); CollectionNotifications?.Dispose(); NativeIntroUnlock.Disable(); MetadataEditNotification.Remove(); ImageEditNotification.Remove(); SubtitleSearchOptimization.Disable(); PersonDetailRefreshControl.Disable(); SeasonCollectionQuery.Disable(); Provider.NativeSeasonCastControl.Disable(); Provider.NativeMovieDbCache.Disable(); Provider.NativeMovieDbRouting.Disable(); Provider.NativePosterOrdering.Disable(); LocalDiscoveryControl.Disable(); NativeHttpRouting.Disable(); NativeChangedProbeControl.Disable(); ExclusiveRemoteFetcherControl.Disable(); ExclusiveChapterImageControl.Disable(); ExclusiveMediaControl.Disable(); ExclusiveSaverControl.Disable(); StrmThumbnailCompatibility.Disable(); DashboardAssets?.Restore(); base.OnUninstalling(); }
     private void StopEpisodeBatches()
     {
         TaskCompletionSource<bool>? completion=null;Task cleanup;

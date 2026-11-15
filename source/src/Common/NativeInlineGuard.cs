@@ -74,6 +74,11 @@ public static class NativeInlineGuard
         new("OpenSubtitles", "9748e51c-a9ed-4618-8ae7-644ab2bdcf3c", 0x06000026, 79, "0FE862A4753DACD1FDA6438F7B6558439CB8A02FEB6022B56D19527E55DB8DF1"), // OpenSubtitles.OpenSubtitleComDownloader.Search
         new("Tvdb", "7245186e-d86d-4385-8dfb-3582ab8e1c2a", 0x0600035D, 71, "F6CEA5D6A54500EAF8DD845BD6DD0ABBD35C6335EBC3A2377A1E3D289D6FFEB4"), // Tvdb.TvdbMovieImageProvider.GetImages
         new("Tvdb", "7245186e-d86d-4385-8dfb-3582ab8e1c2a", 0x06000393, 71, "01EEF5D7A5845A81FFC4EDD9909855EA7C74E70EB9F53A2CCDFA47E75E1F92EB"), // Tvdb.TvdbSeriesImageProvider.GetImages
+        // M169: native intro detection unlock (NativeIntroUnlock); SequenceDetection.DetectSequences has EH and needs no guard.
+        new("Emby.Providers", "29b37ec2-5f02-443c-a995-1f61c71f43c6", 0x06000188, 146, "A693BAD7FDC62A1FD66AAFCFFCB41EF233277554F0F0EEAEF8FA76E354C5C1D0"), // AudioFingerprintManager.IsIntroDetectionSupported
+        new("Emby.Providers", "29b37ec2-5f02-443c-a995-1f61c71f43c6", 0x06000198, 146, "184656ADB90F28C2DAF9DCEBE9250EA8E8BBE44C7792834A5603C2254A817DAD"), // MarkerScheduledTask.CreateQueryForEpisodeIntroDetection
+        new("Emby.Providers", "29b37ec2-5f02-443c-a995-1f61c71f43c6", 0x0600017E, 61, "96922D1B9EDCD6F7D17576A1BA8654DC6B0517BE6A17676BAEBB2F7150C5FDDB"), // AudioFingerprintManager.OnFailedToFindIntro
+        new("MediaBrowser.Controller", "58dae430-7295-47bb-a62f-b26bf0d89604", 0x06000CDC, 12, "21942918F7172EB5EB3212B8FE193DA6EA3D04154276D4F348ED493DEB81AFE2"), // BaseItem.get_IsShortcut
     };
 
     public static void Apply(Version hostVersion)

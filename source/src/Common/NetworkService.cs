@@ -193,13 +193,18 @@ public sealed class NetworkService
     }
 }
 
-/// <summary>Reconstruction whitelist is sourced from actual module URLs, not decrypted original constants.</summary>
+/// <summary>M168: whitelist mode proxies the original plugin's 25 domains (notes/decrypted A----------.cs:46915-46939).
+/// Rebuild differences: a whitelisted name is also matched at the bare domain, and destinations that resolve to private or
+/// fake-IP (198.18.0.0/15) addresses stay direct; Douban is not proxied (not in the original list).</summary>
 public sealed class ProxyRouting : IWebProxy
 {
-    // Exact module API origins + image.tmdb.org from the shipped resource; doubanio's suffix
-    // is already accepted by DoubanSubjectParser.ImageUrl. This is not the original encrypted list.
-    public static IReadOnlyList<string> ExactHosts { get; } = Array.AsReadOnly(new[]
-    { "api.themoviedb.org", "api.tmdb.org", "image.tmdb.org", "movie.douban.com", "img.douban.com", "api.theintrodb.org", "api.introdb.app" });
+    public static IReadOnlyList<string> WhitelistDomains { get; } = Array.AsReadOnly(new[]
+    {
+        "mb3admin.com", "embydata.com", "emby.media", "emby.tv", "github.com", "githubusercontent.com", "themoviedb.org", "tmdb.org",
+        "thetvdb.com", "omdbapi.com", "fanart.tv", "anidb.net", "anilist.co", "anisearch.de", "trakt.tv", "opensubtitles.com",
+        "musicbrainz.org", "theaudiodb.com", "discogs.com", "telegram.org", "discord.com", "wikidata.org", "mdblist.com", "introdb.app",
+        "theintrodb.org"
+    });
     private readonly NetworkOptions.ProxyModeOption mode;
     private readonly Func<string, Task<IPAddress[]>> resolver;
     private readonly object dnsGate = new();
@@ -267,7 +272,8 @@ public sealed class ProxyRouting : IWebProxy
     public static bool IsWhitelisted(string host)
     {
         host = host.TrimEnd('.');
-        return ExactHosts.Contains(host, StringComparer.OrdinalIgnoreCase) || host.EndsWith(".doubanio.com", StringComparison.OrdinalIgnoreCase);
+        return WhitelistDomains.Any(domain => host.Equals(domain, StringComparison.OrdinalIgnoreCase) ||
+            host.EndsWith("." + domain, StringComparison.OrdinalIgnoreCase));
     }
     public static bool IsPrivateAddress(IPAddress address)
     {

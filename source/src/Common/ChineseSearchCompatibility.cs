@@ -149,9 +149,44 @@ public static class ChineseSearchCompatibility
         }
         finally { Depth.Value = previous; }
     }
+    /// <summary>M168: original provider-id search syntax; replaces the term with a native AnyProviderIdEquals lookup.</summary>
+    private static bool TryProviderId(object repository, ref InternalItemsQuery query, object[] args, out Invocation? state)
+    {
+        state = null;
+        var registration = Volatile.Read(ref active);
+        if (registration == null || !ReferenceEquals(registration.Repository, repository) || Depth.Value != 0 || query == null ||
+            !registration.Index.IsEnabled || !ProviderIdSearch.TryParse(query.SearchTerm, out var key, out var value)) return false;
+        var types = ProviderIdSearch.RestrictTypes(query.IncludeItemTypes);
+        if (query.IncludeItemTypes.Length != 0 && types.Length == 0) return false; // only other types requested: keep native
+        var clone = CloneQuery(query);
+        clone.SearchTerm = null;
+        clone.AnyProviderIdEquals = new List<KeyValuePair<string, string>> { new(key, value) };
+        clone.IncludeItemTypes = types;
+        state = new Invocation(query, Depth.Value);
+        Depth.Value++;
+        query = clone; args[0] = clone;
+        return true;
+    }
+    /// <summary>M168: the original limits a type-less search to the SearchScope types (AAA--------/A----------.cs:3740). The caller's
+    /// query is never mutated; the routing below continues with the scoped clone (explicit-type handling).</summary>
+    private static void ApplyScope(object repository, ref InternalItemsQuery query, object[] args)
+    {
+        var registration = Volatile.Read(ref active);
+        if (registration == null || !ReferenceEquals(registration.Repository, repository) || Depth.Value != 0 || query == null ||
+            query.IncludeItemTypes.Length != 0 || string.IsNullOrWhiteSpace(query.SearchTerm) || query.User == null ||
+            !string.IsNullOrEmpty(query.Name) || query.ItemIds.Length != 0 || registration.Index.DefaultSearchTypes is not { } scope) return;
+        var excluded = query.ExcludeItemTypes;
+        var types = scope.Where(t => !excluded.Contains(t, StringComparer.OrdinalIgnoreCase)).ToArray();
+        if (types.Length == 0) return;
+        var clone = CloneQuery(query);
+        clone.IncludeItemTypes = types;
+        query = clone; args[0] = clone;
+    }
     private static bool BeforeItems(object __instance, ref InternalItemsQuery __0, object[] __args, ref QueryResult<BaseItem> __result, out Invocation? __state)
     {
         __state = null;
+        if (TryProviderId(__instance, ref __0, __args, out __state)) return true;
+        ApplyScope(__instance, ref __0, __args);
         if (SuppressHistory(__instance, __0))
         { ((CancellationToken)__args[^1]).ThrowIfCancellationRequested(); __result = new QueryResult<BaseItem> { Items = Array.Empty<BaseItem>(), TotalRecordCount = 0 }; return false; }
         if (TryMixed(__instance, __0, __args, out var rows))
@@ -161,6 +196,8 @@ public static class ChineseSearchCompatibility
     private static bool BeforeList(object __instance, ref InternalItemsQuery __0, object[] __args, ref BaseItem[] __result, out Invocation? __state)
     {
         __state = null;
+        if (TryProviderId(__instance, ref __0, __args, out __state)) return true;
+        ApplyScope(__instance, ref __0, __args);
         if (SuppressHistory(__instance, __0))
         { ((CancellationToken)__args[^1]).ThrowIfCancellationRequested(); __result = Array.Empty<BaseItem>(); return false; }
         if (TryMixed(__instance, __0, __args, out var rows)) { __result = MixedSearchQuery.Page(__0, rows); return false; }
@@ -169,6 +206,8 @@ public static class ChineseSearchCompatibility
     private static bool BeforeTypes(object __instance, ref InternalItemsQuery __0, object[] __args, ref string[] __result, out Invocation? __state)
     {
         __state = null;
+        if (TryProviderId(__instance, ref __0, __args, out __state)) return true;
+        ApplyScope(__instance, ref __0, __args);
         var typesQuery = CloneQuery(__0); typesQuery.GroupByPresentationUniqueKey = false;
         if (TryMixed(__instance, typesQuery, __args, out var rows)) { __result = MixedSearchQuery.ItemTypes(rows); return false; }
         Before(__instance, ref __0, __args, out __state); return true;

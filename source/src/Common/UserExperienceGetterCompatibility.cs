@@ -249,7 +249,10 @@ public static class UserExperienceGetterCompatibility
                 "movies" => new[] { "Movie" }, "tvshows" => new[] { "Series" },
                 "homevideos" => new[] { "Video", "Photo" }, "musicvideos" => new[] { "MusicVideo" },
                 "books" => new[] { "Book" }, "music" or "audiobooks" => new[] { "MusicAlbum" },
-                "boxsets" => new[] { "BoxSet" }, "playlists" => new[] { "Playlist" }, _ => null
+                "boxsets" => new[] { "BoxSet" }, "playlists" => new[] { "Playlist" },
+                // M167: original AA---------/A----------.cs:3094 counts Movie+Series for a mixed library (no collection type)
+                // and Game for a games library; other unknown types get no count.
+                "" => new[] { "Movie", "Series" }, "games" => new[] { "Game" }, _ => null
             };
             if (countTypes != null)
             {
@@ -276,8 +279,9 @@ public static class UserExperienceGetterCompatibility
                 catch { /* A failed visible-count query retains the original response; no invented zero. */ }
             }
         }
-        if (current.EpisodeTotals != null && item is Folder episodes &&
-            item is MediaBrowser.Controller.Entities.TV.Series or MediaBrowser.Controller.Entities.TV.Season && dto.Type == item.GetClientTypeName() &&
+        // M167: every folder type, as the original (library folders keep ShowLibraryItemCount's count when that is on).
+        if (current.EpisodeTotals != null && item is Folder episodes && item is not UserRootFolder && item is not AggregateFolder &&
+            !(item is CollectionFolder && current.LibraryCounts != null) && dto.Type == item.GetClientTypeName() &&
             item.InternalId > 0 && dto.Id == item.GetClientId() && user != null && user.Policy?.IsDisabled == false &&
             options?.EnableUserData == true && dto.UserData != null)
         {

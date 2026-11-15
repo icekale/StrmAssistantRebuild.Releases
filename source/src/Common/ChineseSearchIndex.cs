@@ -136,9 +136,12 @@ public sealed class ChineseSearchIndex : IDisposable
             var numeric = settings.DigitsAsTmdbId ? NumericSearchPolicy.Id(term) : null;
             // Original query constructor uses whole-expression OR, not per-character or per-word expansion.
             // Mixed takes precedence; single-direction simplification replaces, rather than unions, the query.
+            // M168: query conversion follows the server's metadata language as the original (region, Japanese skip, 妳).
+            var language = MetadataLanguage?.Invoke();
+            var simplifiedTerm = PinyinUtility.ToSimplifiedForSearch(term, language);
             var queries = settings.MixedVariants
-                ? new[] { term, PinyinUtility.ToSimplified(term), PinyinUtility.ToTraditional(PinyinUtility.ToSimplified(term)) }
-                : new[] { settings.SimplifyQuery ? PinyinUtility.ToSimplified(term) : term };
+                ? new[] { term, simplifiedTerm, PinyinUtility.ToTraditional(simplifiedTerm) }
+                : new[] { settings.SimplifyQuery ? simplifiedTerm : term };
             var enhancedWords = queries.Distinct(StringComparer.Ordinal).Select(SearchWords).Where(w => w.Length > 0).ToArray();
             var matches = entries.Values.Where(entry =>
             {
@@ -164,6 +167,9 @@ public sealed class ChineseSearchIndex : IDisposable
     {
         lock (sync) return ready && settings.Enabled && !disposed && settings.DigitsAsTmdbId && NumericSearchPolicy.Id(term) != null;
     }
+    /// <summary>M168: SearchScope item types for default (type-less) searches, or null when the scope is empty/unknown.</summary>
+    internal string[]? DefaultSearchTypes { get { lock (sync) return settings.Enabled && !disposed && settings.Types.Length > 0 && !settings.Types.Contains("__NoEnhancedType__") ? settings.Types : null; } }
+    internal bool IsEnabled { get { lock (sync) return settings.Enabled && !disposed; } }
     internal bool SuppressSearchSuggestions { get { lock (sync) return settings.Enabled && !disposed && settings.SuppressSuggestions; } }
     internal ILibraryManager Library => library;
     internal string? CandidateType(long id) { lock (sync) return entries.TryGetValue(id, out var entry) ? entry.Type : null; }
@@ -220,6 +226,7 @@ public sealed class ChineseSearchIndex : IDisposable
             ModOptions.SearchItemType.Music => new[] { "Audio", "MusicVideo" },
             ModOptions.SearchItemType.LiveTv => new[] { "LiveTvChannel", "LiveTvProgram", "LiveTVSeries" },
             ModOptions.SearchItemType.Genre => new[] { "Genre", "MusicGenre", "GameGenre" },
+            ModOptions.SearchItemType.Game => new[] { "Game", "GameSystem" }, // M168: original A----------.cs:21600-21790
             _ => new[] { t.ToString() }
         }).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         return types.Length == 0 ? new[] { "__NoEnhancedType__" } : types; // Unknown selection never expands to all.
@@ -273,6 +280,8 @@ public sealed class ChineseSearchIndex : IDisposable
             Persist();
         }
     }
+    /// <summary>M168: the server's preferred metadata language (Plugin supplies it; null = default region, conversion on).</summary>
+    public static Func<string?>? MetadataLanguage { get; set; }
     private sealed record Settings(bool Enabled, bool Full, bool ExcludeOriginal, bool DigitsAsTmdbId, bool SuppressSuggestions, bool SimplifyQuery, bool MixedVariants, string[] Types);
     // Tokens are independent of query flags: toggling flags safely reuses this strategy, never old always-on tokens.
     public sealed class Document { public int Version { get; set; } = 3; public string Strategy { get; set; } = ""; public Entry[] Items { get; set; } = Array.Empty<Entry>(); }

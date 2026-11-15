@@ -156,6 +156,25 @@ internal static class WebServiceSupport
         }
         catch { RestoreRetiredFiles(moved, files); throw; }
     }
+    /// <summary>M167: after the caller's change is committed, removes the recovery backups RetireFiles made (end state equals the
+    /// original plugin's plain delete). Only the exact archive paths RetireFiles produced are touched; failures are logged.</summary>
+    internal static int DeleteRetiredFiles(IReadOnlyList<(string Source, string Archive)> moved, IFileSystem files)
+    {
+        var deleted = 0;
+        foreach (var pair in moved)
+        {
+            try
+            {
+                if (!pair.Archive.StartsWith(pair.Source + ".strmassistant-cleared-", StringComparison.Ordinal) || !pair.Archive.EndsWith(".bak", StringComparison.Ordinal)) continue;
+                var archive = Writable(pair.Archive);
+                if (!files.FileExists(archive)) continue;
+                files.DeleteFile(archive); deleted++;
+            }
+            catch (Exception error) { Plugin.Instance?.Logger?.Warn("[StrmAssistantRebuild] Clear backup retained {0}: {1}", pair.Archive, error.Message); }
+        }
+        return deleted;
+    }
+
     internal static void RestoreRetiredFiles(IReadOnlyList<(string Source, string Archive)> moved, IFileSystem files)
     {
         // Cleanup must run even when the caller token is cancelled. Never clobber a newly created source.

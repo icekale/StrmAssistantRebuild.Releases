@@ -13,8 +13,8 @@ public static class MissingMetadataProjection
         BaseItemDto[]? copy = null;
         for (var i = 0; i < dtos.Length; i++)
         {
-            // Distinct singleton/multiple branch follows recovered control flow; English labels are reconstruction choices.
-            var name = dtos.Length == 1 ? "Additional Part" : "Part " + (i + 2).ToString(CultureInfo.InvariantCulture);
+            // Original AA---------/A----------.cs:2604-2621 (M167: literals recovered): one part "下部分", several "第{i+2}部分".
+            var name = dtos.Length == 1 ? "下部分" : "第" + (i + 2).ToString(CultureInfo.InvariantCulture) + "部分";
             if (dtos[i].Name == name) continue;
             copy ??= (BaseItemDto[])dtos.Clone();
             copy[i] = MultiVersionProjection.Clone(dtos[i]);
@@ -35,8 +35,8 @@ public static class MissingMetadataProjection
             string.IsNullOrWhiteSpace(dto.Name) || string.IsNullOrWhiteSpace(authorizedFileNameWithoutExtension) ||
             !string.Equals(dto.Name, authorizedFileNameWithoutExtension, StringComparison.Ordinal)) return dto;
 
-        // Reconstruction convention, NOT recovered original/localized text: those literals are obfuscated.
-        var name = "Episode " + dto.IndexNumber.Value.ToString(CultureInfo.InvariantCulture);
+        // Original AA---------/A----------.cs:2703-2705 (M167: literal recovered): "第 {N} 集", independent of the UI language.
+        var name = "第 " + dto.IndexNumber.Value.ToString(CultureInfo.InvariantCulture) + " 集";
         if (string.Equals(dto.Name, name, StringComparison.Ordinal)) return dto;
         var copy = MultiVersionProjection.Clone(dto);
         copy.Name = name;

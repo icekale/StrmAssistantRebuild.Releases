@@ -3,7 +3,8 @@ using MediaBrowser.Controller.Entities;
 
 namespace StrmAssistantRebuild.Common;
 
-/// <summary>Conservative reconstruction, not the original encrypted regex. IDs remain strings, never ItemIds.</summary>
+/// <summary>Bare digits as a TMDB id (DigitsAsTmdbId). The original's prefixed provider-id syntax is ProviderIdSearch (M168).
+/// IDs remain strings, never ItemIds.</summary>
 internal static class NumericSearchPolicy
 {
     internal const int MaxIdLength = 64;

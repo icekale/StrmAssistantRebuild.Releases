@@ -16,8 +16,8 @@ namespace StrmAssistantRebuild.Common;
 ///    may run for it; ExtractOnFileChange (1) also enables remote probing for a changed item that had media (STRM);
 ///  - CatchAllAllow / CatchAllAllowChapterImage enable remote probing too.
 /// After a successful refresh DateModified is moved to the observed file time, as the original does.
-/// Rebuild differences: cleared files are renamed to recovery backups rather than deleted; cleanup and track updates
-/// use the rebuild's existing primitives.
+/// Cleared chapter images are first renamed to recovery backups (restored if the clear fails) and deleted once the clear is
+/// committed (M167; earlier versions kept the backups). Cleanup and track updates use the rebuild's existing primitives.
 /// </summary>
 public static class ExclusiveFileChange
 {

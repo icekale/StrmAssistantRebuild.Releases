@@ -19,11 +19,14 @@ internal static class ItemCountProjection
 
     internal static BaseItemDto? ProjectEpisodes(BaseItemDto? dto, bool enabled, int? viewerScopedTotal)
     {
-        if (!enabled || dto?.Type is not ("Series" or "Season") || dto.UserData == null || viewerScopedTotal is not >= 0 ||
-            dto.UserData.UnplayedItemCount == viewerScopedTotal && dto.RecursiveItemCount == viewerScopedTotal) return dto;
+        // M167: the original rewrites Folder.FillUserDataValues/FillUserDataDtoValues for every folder type (A----------.cs:44645):
+        // the unplayed count becomes the total of non-folder items and Played becomes "total == 0".
+        if (!enabled || dto == null || !(dto.IsFolder == true || dto.Type is "Series" or "Season") || dto.UserData == null || viewerScopedTotal is not >= 0 ||
+            dto.UserData.UnplayedItemCount == viewerScopedTotal && dto.RecursiveItemCount == viewerScopedTotal && dto.UserData.Played == (viewerScopedTotal == 0)) return dto;
         var copy = MultiVersionProjection.Clone(dto);
         copy.UserData = MultiVersionProjection.Clone(dto.UserData);
         copy.UserData.UnplayedItemCount = viewerScopedTotal;
+        copy.UserData.Played = viewerScopedTotal == 0;
         // Explicit response contract: supply a successful total even when the caller omitted this field.
         // The Web badge consumes RecursiveItemCount, never mistakes an unchanged unplayed count for a total.
         copy.RecursiveItemCount = viewerScopedTotal;
