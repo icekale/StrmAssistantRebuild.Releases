@@ -405,6 +405,12 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
             catch (Exception ex) { failures.Add(ex); Logger.Warn("[StrmAssistantRebuild] Metadata {0} item {1}: {2}", name, item.InternalId, ex.Message); }
         }
         if (MetadataLanguageService != null) await Part("language", async () => { await MetadataLanguageService.ApplyAsync(item, token).ConfigureAwait(false); });
+        if (item is MediaBrowser.Controller.Entities.BoxSet)
+        {
+            // M170: collections only take the ChineseMovieDb text pass (the original's TMDB box set provider); no other enhancer runs for them.
+            if (failures.Count > 0) throw new AggregateException("Collection metadata language enhancement failed.", failures);
+            return;
+        }
         if (EpisodeGroupService != null) await Part("episode-group", async () => { await EpisodeGroupService.ApplyAsync(item, token).ConfigureAwait(false); });
         if (DoubanMetadataService != null) await Part("douban", async () =>
         {
@@ -641,6 +647,8 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
         Logger.Info("[StrmAssistantRebuild] {0}", routing);
         Logger.Info("[StrmAssistantRebuild] {0}", cache);
         Logger.Info("[StrmAssistantRebuild] {0}", poster);
+        PatchHealth.Record("NativeSeasonZeroPoster", Provider.NativeSeasonZeroPoster.Configure(host.ApplicationVersion, options.PreferOriginalPoster, out var seasonZero));
+        Logger.Info("[StrmAssistantRebuild] {0}", seasonZero);
         ConfigureItemsQueryExtensions();
     }
     private void ConfigureItemsQueryExtensions()
@@ -744,6 +752,8 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
             Logger.Info("[StrmAssistantRebuild] {0}", remoteDetail);
             PatchHealth.Record("ExclusiveChapterImage", ExclusiveChapterImageControl.Configure(host.ApplicationVersion, media.ExclusiveExtract && supported, out var chapterDetail));
             Logger.Info("[StrmAssistantRebuild] {0}", chapterDetail);
+            PatchHealth.Record("ExclusiveLibraryScan", ExclusiveLibraryScanControl.Configure(host.ApplicationVersion, media.ExclusiveExtract && supported, out var scanDetail));
+            Logger.Info("[StrmAssistantRebuild] {0}", scanDetail);
             // Project only complete supported selections; invalid mixtures retain their full rejection context.
             var alternativeSelection = ExclusiveMediaControl.TryGetAlternativeSelection(media.ExclusiveControlFeatures, out var alternativeSaverFeatures);
             ExclusiveSaverControl.Configure(host.ApplicationVersion, media.ExclusiveExtract, alternativeSelection ? alternativeSaverFeatures :
@@ -751,7 +761,7 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
             Logger.Info("[StrmAssistantRebuild] {0}", saverDetail);
             var applied = PatchHealth.Record("ExclusiveMediaControl", ExclusiveMediaControl.ConfigureWithAlternativeConsumer(host.ApplicationVersion, media, out var detail,
                 alternativeConsumerReady: MediaCatchup?.IsAlternativeConsumerReady == true && ExclusiveSaverControl.IsEnabled));
-            if (!applied) { ExclusiveSaverControl.Disable(); ExclusiveRemoteFetcherControl.Disable(); ExclusiveChapterImageControl.Disable(); }
+            if (!applied) { ExclusiveSaverControl.Disable(); ExclusiveRemoteFetcherControl.Disable(); ExclusiveChapterImageControl.Disable(); ExclusiveLibraryScanControl.Disable(); }
             ExclusiveSaverControl.ConfigureNativeRestore(applied && media.ExclusiveExtract &&
                 !ExclusiveMediaControl.TryGetNoPersistIntegrationSelection(media.ExclusiveControlFeatures, out _) &&
                 (media.PersistMediaInfoMode == MediaInfoExtractOptions.PersistMediaInfoOption.Restore.ToString() ||
@@ -771,7 +781,7 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
         catch (Exception ex)
         {
             NativeChangedProbeControl.Disable();
-            ExclusiveMediaControl.Disable(); ExclusiveSaverControl.Disable(); ExclusiveRemoteFetcherControl.Disable(); ExclusiveChapterImageControl.Disable();
+            ExclusiveMediaControl.Disable(); ExclusiveSaverControl.Disable(); ExclusiveRemoteFetcherControl.Disable(); ExclusiveChapterImageControl.Disable(); ExclusiveLibraryScanControl.Disable();
             PatchHealth.Record("ExclusiveMediaControl", !media.ExclusiveExtract);
             Logger.Warn("[StrmAssistantRebuild] Exclusive control inactive: {0}", ex.Message);
         }
@@ -781,7 +791,7 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
         var experience = ExperienceStore.GetOptions();
         DashboardAssets?.Refresh(WebOptionsSnapshot.Enabled(media, metadata, intro, experience, SeasonCollectionQuery.IsDoubanFilterEnabled), WebOptionsSnapshot.Create(media, metadata, intro, experience, ConfigurationStore.GetOptions().ModOptions, SeasonCollectionQuery.IsDoubanFilterEnabled, IntroRefreshBridge.IsEnabled));
     }
-    public override void OnUninstalling() { StopEpisodeBatches(); IntroRefreshBridge.Disable(); dashboardLifetime.Cancel(); PlaySessionMonitor?.Dispose(); FavoriteNotifications?.Dispose(); CollectionNotifications?.Dispose(); NativeIntroUnlock.Disable(); MetadataEditNotification.Remove(); ImageEditNotification.Remove(); SubtitleSearchOptimization.Disable(); PersonDetailRefreshControl.Disable(); SeasonCollectionQuery.Disable(); Provider.NativeSeasonCastControl.Disable(); Provider.NativeMovieDbCache.Disable(); Provider.NativeMovieDbRouting.Disable(); Provider.NativePosterOrdering.Disable(); LocalDiscoveryControl.Disable(); NativeHttpRouting.Disable(); NativeChangedProbeControl.Disable(); ExclusiveRemoteFetcherControl.Disable(); ExclusiveChapterImageControl.Disable(); ExclusiveMediaControl.Disable(); ExclusiveSaverControl.Disable(); StrmThumbnailCompatibility.Disable(); DashboardAssets?.Restore(); base.OnUninstalling(); }
+    public override void OnUninstalling() { StopEpisodeBatches(); IntroRefreshBridge.Disable(); dashboardLifetime.Cancel(); PlaySessionMonitor?.Dispose(); FavoriteNotifications?.Dispose(); CollectionNotifications?.Dispose(); NativeIntroUnlock.Disable(); MetadataEditNotification.Remove(); ImageEditNotification.Remove(); SubtitleSearchOptimization.Disable(); PersonDetailRefreshControl.Disable(); SeasonCollectionQuery.Disable(); Provider.NativeSeasonCastControl.Disable(); Provider.NativeMovieDbCache.Disable(); Provider.NativeMovieDbRouting.Disable(); Provider.NativePosterOrdering.Disable(); LocalDiscoveryControl.Disable(); NativeHttpRouting.Disable(); NativeChangedProbeControl.Disable(); ExclusiveRemoteFetcherControl.Disable(); ExclusiveChapterImageControl.Disable(); ExclusiveLibraryScanControl.Disable(); ExclusiveMediaControl.Disable(); ExclusiveSaverControl.Disable(); StrmThumbnailCompatibility.Disable(); DashboardAssets?.Restore(); base.OnUninstalling(); }
     private void StopEpisodeBatches()
     {
         TaskCompletionSource<bool>? completion=null;Task cleanup;
@@ -850,6 +860,7 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
         Provider.NativeSeasonCastControl.Disable();
         PersonDetailRefreshControl.Disable();
         Provider.NativePosterOrdering.Disable();
+        Provider.NativeSeasonZeroPoster.Disable();
         Provider.MissingEpisodeGroupControl.Disable();
         LibraryScopePlayProgressControl.Disable();
         DeepDeleteControl.Disable();
@@ -876,6 +887,7 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
         ExclusiveSaverControl.Disable();
         ExclusiveRemoteFetcherControl.Disable();
         ExclusiveChapterImageControl.Disable();
+        ExclusiveLibraryScanControl.Disable();
         StrmThumbnailCompatibility.Disable();
         OutboundHttp.Dispose();
         if (ReferenceEquals(Instance, this)) Instance = null;

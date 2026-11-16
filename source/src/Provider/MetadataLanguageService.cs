@@ -24,10 +24,9 @@ public sealed class MetadataLanguageService
     readonly HttpClientFactory http;
     readonly ILogger logger;
     readonly EmbyPathPolicy paths;
-    readonly string cacheRoot;
     public MetadataLanguageService(ILibraryManager library, IProviderManager providers, Func<IDirectoryService> createDirectory,
         Func<MetadataEnhanceOptions> options, HttpClientFactory http, ILogger logger, EmbyPathPolicy paths, string cacheRoot)
-    { this.library = library; this.providers = providers; this.createDirectory = createDirectory; this.options = options; this.http = http; this.logger = logger; this.paths = paths; this.cacheRoot = cacheRoot; }
+    { this.library = library; this.providers = providers; this.createDirectory = createDirectory; this.options = options; this.http = http; this.logger = logger; this.paths = paths; _ = cacheRoot; } // cacheRoot: kept for callers; the poster work folder went with M171.
 
     public async Task<bool> ApplyAsync(BaseItem item, CancellationToken token)
     {
@@ -39,24 +38,64 @@ public sealed class MetadataLanguageService
         var grouped = item is Episode ep && settings.MovieDbEpisodeGroup && EpisodeGroupService.HasGroupSource(ep.Series, settings);
         if (!grouped && (settings.ChineseMovieDb || settings.ChineseTvdb))
         {
-            var result = item switch
+            var (original, legacy) = item switch
             {
-                Movie movie => await FetchAsync<Movie, MovieInfo>(movie, null, token).ConfigureAwait(false),
-                Series series => await FetchAsync<Series, SeriesInfo>(series, null, token).ConfigureAwait(false),
-                Season season => await FetchAsync<Season, SeasonInfo>(season, null, token).ConfigureAwait(false),
-                Episode episode => await FetchAsync<Episode, EpisodeInfo>(episode, null, token).ConfigureAwait(false),
-                Person person => await FetchAsync<Person, PersonLookupInfo>(person, null, token).ConfigureAwait(false),
-                _ => null
+                Movie movie => await FetchBothAsync<Movie, MovieInfo>(movie, token).ConfigureAwait(false),
+                Series series => await FetchBothAsync<Series, SeriesInfo>(series, token).ConfigureAwait(false),
+                Season season => await FetchBothAsync<Season, SeasonInfo>(season, token).ConfigureAwait(false),
+                Episode episode => await FetchBothAsync<Episode, EpisodeInfo>(episode, token).ConfigureAwait(false),
+                BoxSet boxSet => await FetchBothAsync<BoxSet, ItemLookupInfo>(boxSet, token).ConfigureAwait(false),
+                Person person => await FetchBothAsync<Person, PersonLookupInfo>(person, token).ConfigureAwait(false),
+                _ => ((MetadataLanguageResult?)null, (MetadataLanguageResult?)null)
             };
-            if (result != null) changed = ApplyText(item, result, settings.BlockNonFallbackLanguage);
-            if (changed) Persist(library, item, token);
+            token.ThrowIfCancellationRequested();
+            if (item.IsLocked) return false;
+            var before = (item.Name, item.Overview, item.Tagline, item.Genres);
+            try
+            {
+                if (original != null) changed |= ApplyText(item, original, settings.BlockNonFallbackLanguage);
+                if (legacy != null)
+                {
+                    // TVDB keeps its own (rebuild) policy; it never re-decides a field the TMDB original rules just set.
+                    if (original?.Name != null) legacy.Name = null;
+                    if (original?.Overview != null) legacy.Overview = null;
+                    changed |= ApplyText(item, legacy, settings.BlockNonFallbackLanguage && original == null);
+                }
+                var tmdb = settings.ChineseMovieDb && item is Movie or Series or Season or Episode && TmdbEnabled(item);
+                if (tmdb && item is Series) changed |= MapSeriesGenres(item);
+                if (changed) Persist(library, item, token);
+                if (tmdb) changed |= ResetDirectorRoles(item);
+            }
+            catch { (item.Name, item.Overview, item.Tagline, item.Genres) = before; throw; }
         }
-        if (settings.PreferOriginalPoster && item is Movie or Series)
-        {
-            try { changed |= await ApplyPosterAsync(item, settings, token).ConfigureAwait(false); }
-            catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
-            catch (Exception ex) { logger.Warn("Metadata original poster failed: {0}", ex.GetType().Name); }
-        }
+        // M171: PreferOriginalPoster has no post-refresh step. The original only orders native candidates (NativePosterOrdering)
+        // and adds season00-poster (NativeSeasonZeroPoster); the former rebuild-only missing-Primary download was removed.
+        return changed;
+    }
+
+    bool TmdbEnabled(BaseItem item) =>
+        providers.GetEnabledMetadataProviders(item, library.GetLibraryOptions(item)).Any(p => ProviderKind(p.Name) == "tmdb");
+
+    /// <summary>M170: original series ImportData genre names (52575).</summary>
+    static bool MapSeriesGenres(BaseItem item)
+    {
+        if (item.IsFieldLocked(MetadataFields.Genres) || item.Genres == null || item.Genres.Length == 0) return false;
+        var mapped = item.Genres.Select(ChineseTextRules.MapSeriesGenre).ToArray();
+        if (mapped.SequenceEqual(item.Genres, StringComparer.Ordinal)) return false;
+        item.Genres = mapped;
+        return true;
+    }
+
+    /// <summary>M170: original People cleanup (51606): a non-actor with a Han name and role "Director" loses the English role text.</summary>
+    bool ResetDirectorRoles(BaseItem item)
+    {
+        if (item.IsLocked || item.IsFieldLocked(MetadataFields.Cast)) return false;
+        var people = library.GetItemPeople(new InternalPeopleQuery { ItemIds = new[] { item.InternalId }, EnableIds = true, EnableImages = true, EnableProviderIds = true });
+        if (people == null || people.Count == 0) return false;
+        var changed = false;
+        foreach (var person in people)
+            if (person != null && person.Type != PersonType.Actor && ChineseTextRules.Han(person.Name) && person.Role == "Director") { person.Role = string.Empty; changed = true; }
+        if (changed) library.UpdatePeople(item, people, false);
         return changed;
     }
 
@@ -76,59 +115,170 @@ public sealed class MetadataLanguageService
         return Task.FromResult(true);
     }
 
-    public Task<MetadataLanguageResult?> FetchEpisodeAsync(Episode item, int season, int episode, CancellationToken token) =>
-        FetchAsync<Episode, EpisodeInfo>(item, lookup => { lookup.ParentIndexNumber = season; lookup.IndexNumber = episode; lookup.ProviderIds = new ProviderIdDictionary(); }, token, true);
+    /// <summary>Grouped episode lookup at aired coordinates: the native main-language request first (the host refreshed the wrong
+    /// coordinates), then — only with ChineseMovieDb — the original fallback languages and rules.</summary>
+    public async Task<MetadataLanguageResult?> FetchEpisodeAsync(Episode item, int season, int episode, CancellationToken token)
+    {
+        var settings = options();
+        var libraryOptions = library.GetLibraryOptions(item);
+        var tmdb = providers.GetEnabledMetadataProviders(item, libraryOptions).OfType<IRemoteMetadataProvider<Episode, EpisodeInfo>>().FirstOrDefault(p => ProviderKind(p.Name) == "tmdb");
+        if (tmdb == null) return null;
+        return await FetchOriginalAsync(item, tmdb, lookup => { lookup.ParentIndexNumber = season; lookup.IndexNumber = episode; lookup.ProviderIds = new ProviderIdDictionary(); },
+            libraryOptions, settings, token, true).ConfigureAwait(false);
+    }
 
-    async Task<MetadataLanguageResult?> FetchAsync<T, TLookup>(T item, Action<TLookup>? configure, CancellationToken token, bool forceTmdb = false)
+    async Task<(MetadataLanguageResult? Original, MetadataLanguageResult? Legacy)> FetchBothAsync<T, TLookup>(T item, CancellationToken token)
         where T : BaseItem, IHasLookupInfo<TLookup>, new() where TLookup : ItemLookupInfo, new()
     {
         var settings = options();
         var libraryOptions = library.GetLibraryOptions(item);
-        var enabled = providers.GetEnabledMetadataProviders(item, libraryOptions);
-        var result = new MetadataLanguageResult { AllowedLanguages = ParseLanguages((settings.ChineseMovieDb || forceTmdb ? settings.FallbackLanguages : "") + "," + (settings.ChineseTvdb && !forceTmdb ? settings.TvdbFallbackLanguages : "")) };
+        var typed = providers.GetEnabledMetadataProviders(item, libraryOptions).OfType<IRemoteMetadataProvider<T, TLookup>>().ToArray();
+        MetadataLanguageResult? original = null;
+        // Person is not part of the original ChineseMovieDb; it keeps the rebuild's legacy pass below.
+        if (settings.ChineseMovieDb && item is not Person && typed.FirstOrDefault(p => ProviderKind(p.Name) == "tmdb") is { } tmdb)
+            original = await FetchOriginalAsync(item, tmdb, null, libraryOptions, settings, token, false).ConfigureAwait(false);
+        var legacy = settings.ChineseTvdb || settings.ChineseMovieDb && item is Person
+            ? await FetchLegacyAsync(item, typed, libraryOptions, settings, item is Person, token).ConfigureAwait(false) : null;
+        return (original, legacy);
+    }
+
+    sealed class TextState { public string? Name, Overview, Tagline; }
+
+    /// <summary>
+    /// M170: the original ChineseMovieDb language loop, run after the host refresh. The host's main-language result is the first
+    /// iteration (normalized and converted as the original's first ProcessMainInfo call would); then the fixed fallback order is
+    /// fetched one language at a time with the original merge rules, stopping as soon as the original completeness check passes.
+    /// </summary>
+    async Task<MetadataLanguageResult> FetchOriginalAsync<T, TLookup>(T item, IRemoteMetadataProvider<T, TLookup> provider, Action<TLookup>? configure,
+        MediaBrowser.Model.Configuration.LibraryOptions libraryOptions, MetadataEnhanceOptions settings, CancellationToken token, bool grouped)
+        where T : BaseItem, IHasLookupInfo<TLookup>, new() where TLookup : ItemLookupInfo, new()
+    {
+        var chinese = settings.ChineseMovieDb;
+        var ja = chinese && ChineseTextRules.JapaneseFallback(settings);
+        var target = item.GetLookupInfo(libraryOptions).MetadataLanguage;
+        var main = item is Movie or Series;
+        var originalTitle = main ? item.OriginalTitle : null;
+        var ruleLanguage = main ? ChineseTextRules.RuleLanguage(item.OriginalTitle) : null;
+        var normalize = chinese && main;
+        var taglines = chinese && main && !settings.ClearTagline;
+        string Convert(string text, string? fetched) => chinese ? ChineseTextRules.Convert(text, fetched, target, settings.PreferTraditionalChinese) : text;
+        var state = new TextState();
+        if (!grouped)
+        {
+            state.Name = item.Name; state.Overview = item.Overview; state.Tagline = taglines ? item.Tagline : null;
+            if (normalize && !string.IsNullOrEmpty(state.Overview)) state.Overview = ChineseTextRules.NormalizeOverview(state.Overview);
+            if (chinese && LanguageFamily(target) == "zh")
+            {
+                // Rebuild adaptation: stored text may come from an earlier ja-JP fallback, which the original never converts;
+                // kana-bearing text is treated as that Japanese result and left alone.
+                string? Main(string? text) => string.IsNullOrEmpty(text) || ChineseTextRules.Kana(text) ? text : Convert(text, target);
+                state.Name = Main(state.Name); state.Overview = Main(state.Overview); state.Tagline = Main(state.Tagline);
+            }
+            // Rebuild adaptation: in the original the fallbacks run before the host's English fallback; an English episode name
+            // left by that later step stands for "no localized name yet".
+            if (item is Episode && !ChineseTextRules.Localized(state.Name, ja)) state.Name = null;
+        }
+        bool Complete() => item is Episode
+            ? !string.IsNullOrWhiteSpace(state.Name) && !ChineseTextRules.ZhEpisodePlaceholder(state.Name) && !ChineseTextRules.JaEpisodePlaceholder(state.Name) && ChineseTextRules.Localized(state.Overview, ja)
+            : ChineseTextRules.Localized(state.Name, ja) && ChineseTextRules.Localized(state.Overview, ja) && (!taglines || ChineseTextRules.Localized(state.Tagline, ja));
+        var result = new MetadataLanguageResult { OriginalRules = true, JapaneseFallback = ja };
+        var languages = new List<string?>();
+        if (grouped) languages.Add(null); // native main-language request at the aired coordinates
+        if (chinese) languages.AddRange(ChineseTextRules.FallbackOrder(settings));
         var observedEpisodeMetadata = false;
         IDirectoryService? directory = null; // One native cache per logical lookup, shared only by its fallbacks.
+        foreach (var language in languages)
+        {
+            token.ThrowIfCancellationRequested();
+            if (language != null && Complete()) break;
+            try
+            {
+                var lookup = item.GetLookupInfo(libraryOptions);
+                configure?.Invoke(lookup);
+                if (language != null) SetSingleLanguage(lookup, language);
+                var response = await GetMetadataAsync(provider, lookup, () => directory ??= createDirectory(), token).ConfigureAwait(false);
+                if (response?.HasMetadata != true || response.Item == null) continue;
+                result.ObservedResponse = true;
+                if (grouped && !observedEpisodeMetadata && lookup is EpisodeInfo requested && response.Item is Episode episode)
+                {
+                    // Native returned-item contract check, not proof of raw response coordinates: the first successful
+                    // result owns IDs/date/rating/cast; later language fallbacks must not replace that decision.
+                    observedEpisodeMetadata = true;
+                    CaptureAired(result, requested, episode, response.People);
+                }
+                if (language != null && !SameLanguage(string.IsNullOrWhiteSpace(response.ResultLanguage) ? language : response.ResultLanguage, language)) continue;
+                var fetched = language ?? lookup.MetadataLanguage;
+                var r = response.Item;
+                var takeName = item switch
+                {
+                    Episode => ChineseTextRules.ReplaceEpisodeName(state.Name, r.Name, ja),
+                    Movie or Series => ChineseTextRules.ReplaceName(state.Name, r.Name, originalTitle, ruleLanguage, ja),
+                    _ => ChineseTextRules.ReplaceText(state.Name, r.Name, null, ja)
+                };
+                if (takeName) state.Name = Convert(r.Name!, fetched);
+                if (ChineseTextRules.ReplaceText(state.Overview, r.Overview, ruleLanguage, ja))
+                    state.Overview = Convert(normalize ? ChineseTextRules.NormalizeOverview(r.Overview!) : r.Overview!, fetched);
+                if (taglines && ChineseTextRules.ReplaceText(state.Tagline, r.Tagline, ruleLanguage, ja)) state.Tagline = Convert(r.Tagline!, fetched);
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+            catch (Exception ex) { logger.Warn("Metadata language provider tmdb/{0} skipped: {1}", language ?? "main", ex.GetType().Name); }
+        }
+        if (state.Name != null && state.Name != item.Name) result.Name = state.Name;
+        if (state.Overview != null && state.Overview != item.Overview) result.Overview = state.Overview;
+        if (taglines && state.Tagline != null && state.Tagline != item.Tagline) result.Tagline = state.Tagline;
+        return result;
+    }
+
+    static void SetSingleLanguage(ItemLookupInfo lookup, string language)
+    {
+        lookup.MetadataLanguage = ToHostLanguage(language);
+        // Do not carry the host's original multi-language preference into this explicit single-language request.
+        lookup.MetadataLanguages = new[] { new MediaBrowser.Model.Globalization.CultureDto
+        { Name = lookup.MetadataLanguage, TwoLetterISOLanguageNames = new[] { LanguageFamily(language) }, ThreeLetterISOLanguageNames = new[]
+            { language.ToLowerInvariant() switch { "zhtw" => "zhtw", "yue" => "yue", _ => LanguageFamily(language) switch { "zh" => "zho", "ja" => "jpn", "ko" => "kor", "en" => "eng", var value => value } } } } };
+    }
+
+    static async Task<MetadataResult<T>?> GetMetadataAsync<T, TLookup>(IRemoteMetadataProvider<T, TLookup> provider, TLookup lookup, Func<IDirectoryService> directory, CancellationToken token)
+        where T : BaseItem, IHasLookupInfo<TLookup>, new() where TLookup : ItemLookupInfo, new() =>
+        provider is IRemoteMetadataProviderWithOptions<T, TLookup> withOptions
+            ? await withOptions.GetMetadata(new RemoteMetadataFetchOptions<TLookup> { SearchInfo = lookup, DirectoryService = directory() }, token).ConfigureAwait(false)
+            : await provider.GetMetadata(lookup, token).ConfigureAwait(false);
+
+    static void CaptureAired(MetadataLanguageResult result, EpisodeInfo requested, Episode episode, List<PersonInfo>? people)
+    {
+        if (episode.ParentIndexNumber != requested.ParentIndexNumber || episode.IndexNumber != requested.IndexNumber) return;
+        if (episode.PremiereDate is { } date && date != default(DateTimeOffset)) result.AiredPremiereDate = date;
+        result.AiredTmdbId = PositiveId(episode.GetProviderId(MetadataProviders.Tmdb));
+        result.AiredTvdbId = PositiveId(episode.GetProviderId(MetadataProviders.Tvdb));
+        if (episode.CommunityRating is >= 0 and <= 10) result.AiredRating = episode.CommunityRating;
+        result.AiredPeople = CapturePeople(people);
+        var imdb = episode.GetProviderId(MetadataProviders.Imdb);
+        if (imdb?.StartsWith("tt", StringComparison.Ordinal) == true && PositiveId(imdb[2..]) != null) result.AiredImdbId = imdb;
+    }
+
+    /// <summary>Rebuild pass for TVDB (ChineseTvdb) and, rebuild-only, TMDB Person text: user order, first matching script.</summary>
+    async Task<MetadataLanguageResult?> FetchLegacyAsync<T, TLookup>(T item, IRemoteMetadataProvider<T, TLookup>[] typed,
+        MediaBrowser.Model.Configuration.LibraryOptions libraryOptions, MetadataEnhanceOptions settings, bool includeTmdb, CancellationToken token)
+        where T : BaseItem, IHasLookupInfo<TLookup>, new() where TLookup : ItemLookupInfo, new()
+    {
+        var useTmdb = includeTmdb && settings.ChineseMovieDb;
+        var result = new MetadataLanguageResult { AllowedLanguages = ParseLanguages((useTmdb ? settings.FallbackLanguages : "") + "," + (settings.ChineseTvdb ? settings.TvdbFallbackLanguages : "")) };
+        IDirectoryService? directory = null;
         // Preserve host provider ordering; only exact recognized names are selected, never reflected methods.
-        foreach (var provider in enabled.OfType<IRemoteMetadataProvider<T, TLookup>>())
+        foreach (var provider in typed)
         {
             var kind = ProviderKind(provider.Name);
-            if (kind == "tmdb" ? !(settings.ChineseMovieDb || forceTmdb) : kind == "tvdb" ? !settings.ChineseTvdb || forceTmdb : true) continue;
-            var languages = ParseLanguages(kind == "tmdb" ? settings.FallbackLanguages : settings.TvdbFallbackLanguages);
-            if (languages.Length == 0) continue;
-            foreach (var language in languages)
+            if (kind == "tmdb" ? !useTmdb : kind == "tvdb" ? !settings.ChineseTvdb : true) continue;
+            foreach (var language in ParseLanguages(kind == "tmdb" ? settings.FallbackLanguages : settings.TvdbFallbackLanguages))
             {
                 token.ThrowIfCancellationRequested();
                 try
                 {
                     var lookup = item.GetLookupInfo(libraryOptions);
-                    configure?.Invoke(lookup);
-                    lookup.MetadataLanguage = ToHostLanguage(language);
-                    // Do not carry the host's original multi-language preference into this explicit single-language request.
-                    lookup.MetadataLanguages = new[] { new MediaBrowser.Model.Globalization.CultureDto
-                    { Name = lookup.MetadataLanguage, TwoLetterISOLanguageNames = new[] { LanguageFamily(language) }, ThreeLetterISOLanguageNames = new[]
-                        { language.ToLowerInvariant() switch { "zhtw" => "zhtw", "yue" => "yue", _ => LanguageFamily(language) switch { "zh" => "zho", "ja" => "jpn", "ko" => "kor", "en" => "eng", var value => value } } } } };
-                    var response = provider is IRemoteMetadataProviderWithOptions<T, TLookup> withOptions
-                        ? await withOptions.GetMetadata(new RemoteMetadataFetchOptions<TLookup> { SearchInfo = lookup, DirectoryService = directory ??= createDirectory() }, token).ConfigureAwait(false)
-                        : await provider.GetMetadata(lookup, token).ConfigureAwait(false);
+                    SetSingleLanguage(lookup, language);
+                    var response = await GetMetadataAsync(provider, lookup, () => directory ??= createDirectory(), token).ConfigureAwait(false);
                     if (response?.HasMetadata != true || response.Item == null) continue;
                     result.ObservedResponse = true;
-                    if (forceTmdb && !observedEpisodeMetadata && lookup is EpisodeInfo requested && response.Item is Episode episode)
-                    {
-                        // This is a native returned-item contract check, not proof of raw response coordinates:
-                        // native ImportData can copy requested indices. First successful result owns IDs/date,
-                        // including unknown fields; later language fallbacks must not replace that decision.
-                        observedEpisodeMetadata = true;
-                        if (episode.ParentIndexNumber == requested.ParentIndexNumber && episode.IndexNumber == requested.IndexNumber)
-                        {
-                            if (episode.PremiereDate is { } date && date != default(DateTimeOffset)) result.AiredPremiereDate = date;
-                            result.AiredTmdbId = PositiveId(episode.GetProviderId(MetadataProviders.Tmdb));
-                            result.AiredTvdbId = PositiveId(episode.GetProviderId(MetadataProviders.Tvdb));
-                            if (episode.CommunityRating is >= 0 and <= 10) result.AiredRating = episode.CommunityRating;
-                            result.AiredPeople = CapturePeople(response.People);
-                            var imdb = episode.GetProviderId(MetadataProviders.Imdb);
-                            if (imdb?.StartsWith("tt", StringComparison.Ordinal) == true && PositiveId(imdb[2..]) != null) result.AiredImdbId = imdb;
-                        }
-                    }
                     // Explicit provider language is authoritative; script checks also reject known silent English fallback.
                     var actual = string.IsNullOrWhiteSpace(response.ResultLanguage) ? language : response.ResultLanguage;
                     if (!SameLanguage(actual, language)) continue;
@@ -165,9 +315,7 @@ public sealed class MetadataLanguageService
     internal static string? PositiveId(string? value) => value is { Length: > 0 and <= 19 } &&
         value.All(c => c is >= '0' and <= '9') && long.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out var number) && number > 0 ? number.ToString(CultureInfo.InvariantCulture) : null;
 
-    // Source also converts selected provider text (decompiled 93062–93211), not just fallback arrays.
-    // Rebuild choice: keep every configured language in place; standard dictionary variant 0 only.
-    // Unknown/implicit language is not evidence to convert Han-only Japanese or pre-existing user text.
+    // Legacy (TVDB/Person) pass: convert only confirmed Chinese text, and only with PreferTraditionalChinese.
     static string ApplyChineseTextPolicy(string text, string? resultLanguage, bool preferTraditional) =>
         preferTraditional && LanguageFamily(resultLanguage) == "zh" && ContentMatches(text, "zh")
             ? PinyinUtility.ToTraditional(PinyinUtility.ToSimplified(text)) : text;
@@ -176,6 +324,20 @@ public sealed class MetadataLanguageService
     {
         if (item.IsLocked) return false;
         var changed = false;
+        if (result.OriginalRules)
+        {
+            // Values were already decided by the original rules; this only writes them, honoring field locks.
+            if (result.Name != null && !item.IsFieldLocked(MetadataFields.Name) && item.Name != result.Name) { item.Name = result.Name; changed = true; }
+            if (!item.IsFieldLocked(MetadataFields.Overview))
+            {
+                var overview = result.Overview ?? item.Overview;
+                // Original BlockNonFallback runs on a real provider result only; an outage is not proof.
+                if (blockNonFallback && result.ObservedResponse && ChineseTextRules.BlockOverview(overview, result.JapaneseFallback)) overview = string.Empty;
+                if (overview != null && item.Overview != overview) { item.Overview = overview; changed = true; }
+            }
+            if (result.Tagline != null && !item.IsFieldLocked(MetadataFields.Tagline) && item.Tagline != result.Tagline) { item.Tagline = result.Tagline; changed = true; }
+            return changed;
+        }
         if (!item.IsFieldLocked(MetadataFields.Name) && !string.IsNullOrWhiteSpace(result.Name) && item.Name != result.Name)
         { item.Name = result.Name; changed = true; }
         // An outage/missing provider is not proof of a disallowed overview. Clear only after a real provider response.
@@ -218,73 +380,6 @@ public sealed class MetadataLanguageService
     public static IEnumerable<RemoteImageInfo> SortPosters(IEnumerable<RemoteImageInfo> images, string originalLanguage) =>
         OriginalPosterPolicy.Sort(images, originalLanguage);
 
-    async Task<bool> ApplyPosterAsync(BaseItem item, MetadataEnhanceOptions settings, CancellationToken token)
-    {
-        token.ThrowIfCancellationRequested();
-        // This is a missing-image fallback, not the source's provider/UI candidate hook. Never replace a user's poster.
-        if (item is not (Movie or Series) || item.IsLocked || item.HasImage(ImageType.Primary, 0)) return false;
-        var original = OriginalPosterPolicy.OriginalLanguageHint(item.OriginalTitle);
-        if (original == null)
-        {
-            logger.Debug("Original poster {0}: {1}; no provider original_language is exposed by the public item contract.", item.InternalId,
-                string.IsNullOrWhiteSpace(item.OriginalTitle) ? "no-original-title" : "unknown-original-language");
-            return false;
-        }
-        var libraryOptions = library.GetLibraryOptions(item);
-        var preferred = libraryOptions.PreferredImageLanguage;
-        // Candidate lookup and its image save share this operation's native cache, never other items/runs.
-        var directory = createDirectory();
-        // The host owns provider enablement, credentials and its existing provider/rating/size/vote tie-breaks.
-        var candidates = (await providers.GetAvailableRemoteImages(item, libraryOptions,
-            new RemoteImageQuery { ImageType = ImageType.Primary, IncludeAllLanguages = true, IncludeDisabledProviders = false }, directory, token).ConfigureAwait(false)).ToArray();
-        token.ThrowIfCancellationRequested();
-        if (candidates.Length == 0)
-        {
-            // Native ProviderManager catches individual provider failures and returns empty. Do not manufacture a no-match verdict.
-            logger.Warn("Original poster {0}: native-empty-or-provider-failure; inspect native GetImageInfos logs.", item.InternalId);
-            return false;
-        }
-        var ranked = OriginalPosterPolicy.Sort(candidates, original, preferred).ToArray();
-        for (var i = 0; i < candidates.Length; i++)
-        {
-            var candidate = candidates[i];
-            logger.Debug("Original poster candidate {0}: native-index={1}, provider={2}, language={3}, priority={4}, size={5}x{6}, rating={7}, votes={8}, type={9}, http={10}",
-                item.InternalId, i, candidate.ProviderName, candidate.Language ?? "<unknown>", OriginalPosterPolicy.Priority(candidate, original, preferred),
-                candidate.Width, candidate.Height, candidate.CommunityRating, candidate.VoteCount, candidate.Type, IsHttpUrl(candidate.Url));
-        }
-        var image = ranked.FirstOrDefault(candidate => OriginalPosterPolicy.Priority(candidate, original, preferred) < 4 && IsHttpUrl(candidate.Url));
-        if (image == null) { logger.Debug("Original poster {0}: no-matching-candidate in {1} returned candidates.", item.InternalId, candidates.Length); return false; }
-        paths.RequireWritablePath(item.GetInternalMetadataPath());
-        var bytes = await ReadHttpAsync(http, new Uri(image.Url), 12 * 1024 * 1024, token).ConfigureAwait(false);
-        var mime = ImageMime(bytes) ?? throw new InvalidDataException("Remote poster is not a supported raster image.");
-        var work = paths.RequireWritablePath(Path.Combine(cacheRoot, "posters", "image-work"));
-        Directory.CreateDirectory(work);
-        var temp = paths.RequireWritablePath(Path.Combine(work, Guid.NewGuid().ToString("N") + ".tmp"));
-        try
-        {
-            await File.WriteAllBytesAsync(temp, bytes, token).ConfigureAwait(false);
-            token.ThrowIfCancellationRequested();
-            if (item.IsLocked || item.HasImage(ImageType.Primary, 0)) return false;
-            paths.RequireWritablePath(item.GetInternalMetadataPath());
-            var previous = item.ImageInfos;
-            try
-            {
-                await providers.SaveImage(item, new MediaBrowser.Model.Configuration.LibraryOptions { SaveLocalMetadata = false }, temp, mime.AsMemory(),
-                    ImageType.Primary, 0, false, Array.Empty<long>(), directory, true, token).ConfigureAwait(false);
-                token.ThrowIfCancellationRequested();
-                library.UpdateImages(item); // ImageSaver writes bytes/SetImage only; post-refresh owns the repository commit.
-            }
-            catch { item.ImageInfos = previous; throw; }
-            logger.Debug("Original poster {0}: saved missing Primary via native SaveImage; language={1}, original-script-hint={2}, priority={3}",
-                item.InternalId, image.Language, original, OriginalPosterPolicy.Priority(image, original, preferred));
-            return true;
-        }
-        finally { try { if (File.Exists(temp)) File.Delete(paths.RequireWritablePath(temp)); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { logger.Warn("Poster temporary cleanup failed: {0}", ex.GetType().Name); } }
-    }
-    static string? ImageMime(byte[] b) => b.Length < 12 ? null :
-        b[0] == 0xff && b[1] == 0xd8 && b[^2] == 0xff && b[^1] == 0xd9 ? "image/jpeg" :
-        b.AsSpan(0, 8).SequenceEqual(new byte[] { 137,80,78,71,13,10,26,10 }) ? "image/png" :
-        System.Text.Encoding.ASCII.GetString(b, 0, 4) == "RIFF" && System.Text.Encoding.ASCII.GetString(b, 8, 4) == "WEBP" ? "image/webp" : null;
     public static bool IsHttpUrl(string? text) => Uri.TryCreate(text, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https" && string.IsNullOrEmpty(uri.UserInfo);
 
     internal static Uri TmdbEndpoint(MetadataEnhanceOptions settings, string relative)
@@ -296,11 +391,11 @@ public sealed class MetadataLanguageService
         root = uri.AbsoluteUri.TrimEnd('/');
         return new Uri(root + (root.EndsWith("/3", StringComparison.Ordinal) ? "/" : "/3/") + relative);
     }
-    internal static async Task<JsonDocument?> GetTmdbAsync(HttpClientFactory http, MetadataEnhanceOptions settings, string relative, CancellationToken token)
+    internal static async Task<JsonDocument?> GetTmdbAsync(HttpClientFactory http, MetadataEnhanceOptions settings, string relative, CancellationToken token, string? query = null)
     {
         if (string.IsNullOrWhiteSpace(settings.AltMovieDbApiKey)) return null;
         var endpoint = TmdbEndpoint(settings, relative);
-        var url = new Uri(endpoint.AbsoluteUri + "?api_key=" + Uri.EscapeDataString(settings.AltMovieDbApiKey));
+        var url = new Uri(endpoint.AbsoluteUri + "?" + (string.IsNullOrEmpty(query) ? "" : query + "&") + "api_key=" + Uri.EscapeDataString(settings.AltMovieDbApiKey));
         var data = await ReadHttpAsync(http, url, 4 * 1024 * 1024, token).ConfigureAwait(false);
         return JsonDocument.Parse(data, new JsonDocumentOptions { MaxDepth = 32 });
     }
@@ -328,6 +423,10 @@ public sealed class MetadataLanguageResult
 {
     public string? Name { get; set; }
     public string? Overview { get; set; }
+    public string? Tagline { get; set; }
+    /// <summary>M170: Name/Overview/Tagline are final values decided by the original ChineseMovieDb rules.</summary>
+    public bool OriginalRules { get; set; }
+    public bool JapaneseFallback { get; set; }
     public bool ObservedResponse { get; set; }
     public DateTimeOffset? AiredPremiereDate { get; set; }
     public float? AiredRating { get; set; }

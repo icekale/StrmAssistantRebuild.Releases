@@ -21,8 +21,8 @@ public static class NativeInlineGuard
     public static int Count { get { lock (Gate) return Guarded.Count; } }
     public static string Detail { get; private set; } = "Not applied.";
 
-    /// <summary>Exclusive-mode targets on the pinned 4.10.2 host: saver 2, remote fetcher 2, chapter images 1, Movie ffprobe 1, extraction 8.</summary>
-    public const int ExpectedExclusive = 14;
+    /// <summary>Exclusive-mode targets on the pinned 4.10.2 host: saver 2, remote fetcher 3 (M172: + GetEnabledMetadataProviders), chapter images 1, Movie ffprobe 1, extraction 8.</summary>
+    public const int ExpectedExclusive = 15;
     /// <summary>All guarded targets: the exclusive ones plus <see cref="Known"/>.</summary>
     public static int Expected => ExpectedExclusive + Known.Length;
 
@@ -71,6 +71,7 @@ public static class NativeInlineGuard
         new("MovieDb", "bf190786-42b7-4923-aea6-1851feea4259", 0x06000150, 79, "29FED7F65FA79648FAE8103DD2ED04593E0F3D24D59FBD40B41F2DBCF338BB85"), // MovieDb.MovieDbSeriesProvider.FetchMainResult
         new("MovieDb", "bf190786-42b7-4923-aea6-1851feea4259", 0x060001DF, 156, "6140C644701FF46219D905540D2708B179C0E2CF9556D736696E1A1D8E1677CC"), // MovieDb.MovieDbImageProvider+<>c__DisplayClass3_0.<GetImages>b__3
         new("MovieDb", "bf190786-42b7-4923-aea6-1851feea4259", 0x06000375, 156, "7BC844940C79A2013524C4799EB23E439BE863FFD4FD08BE700CF19AE0A632F2"), // MovieDb.MovieDbSeriesImageProvider+<>c__DisplayClass3_0.<GetImages>b__3
+        new("MovieDb", "bf190786-42b7-4923-aea6-1851feea4259", 0x060001A1, 156, "E703B52F12F843C3C7F8595512D41A1B6F43A03F36B45A1A9AD2EA2AA5AECD08"), // MovieDb.MovieDbBoxSetImageProvider+<>c__DisplayClass5_0.<GetImages>b__3 (M171)
         new("OpenSubtitles", "9748e51c-a9ed-4618-8ae7-644ab2bdcf3c", 0x06000026, 79, "0FE862A4753DACD1FDA6438F7B6558439CB8A02FEB6022B56D19527E55DB8DF1"), // OpenSubtitles.OpenSubtitleComDownloader.Search
         new("Tvdb", "7245186e-d86d-4385-8dfb-3582ab8e1c2a", 0x0600035D, 71, "F6CEA5D6A54500EAF8DD845BD6DD0ABBD35C6335EBC3A2377A1E3D289D6FFEB4"), // Tvdb.TvdbMovieImageProvider.GetImages
         new("Tvdb", "7245186e-d86d-4385-8dfb-3582ab8e1c2a", 0x06000393, 71, "01EEF5D7A5845A81FFC4EDD9909855EA7C74E70EB9F53A2CCDFA47E75E1F92EB"), // Tvdb.TvdbSeriesImageProvider.GetImages
@@ -79,6 +80,10 @@ public static class NativeInlineGuard
         new("Emby.Providers", "29b37ec2-5f02-443c-a995-1f61c71f43c6", 0x06000198, 146, "184656ADB90F28C2DAF9DCEBE9250EA8E8BBE44C7792834A5603C2254A817DAD"), // MarkerScheduledTask.CreateQueryForEpisodeIntroDetection
         new("Emby.Providers", "29b37ec2-5f02-443c-a995-1f61c71f43c6", 0x0600017E, 61, "96922D1B9EDCD6F7D17576A1BA8654DC6B0517BE6A17676BAEBB2F7150C5FDDB"), // AudioFingerprintManager.OnFailedToFindIntro
         new("MediaBrowser.Controller", "58dae430-7295-47bb-a62f-b26bf0d89604", 0x06000CDC, 12, "21942918F7172EB5EB3212B8FE193DA6EA3D04154276D4F348ED493DEB81AFE2"), // BaseItem.get_IsShortcut
+        // M172: exclusive-mode library structure scans (ExclusiveLibraryScanControl); Emby.Api may load after plugin construction.
+        new("Emby.Api", "0873fdaf-f3f8-45f4-8d9c-b647b1edf372", 0x060006C7, 240, "A2C226A3EDABE25078603D2E1F01A09E4F9F266EDB34DA30DD65AAB0C4D99A22"), // LibraryStructureService.Post(AddVirtualFolder)
+        new("Emby.Api", "0873fdaf-f3f8-45f4-8d9c-b647b1edf372", 0x060006CA, 78, "D52CE20AF569CD34931C4BFE34F7ACA80B0CBB9300040713F88629CB3C0BDCC0"), // LibraryStructureService.Post(AddMediaPath)
+        new("Emby.Server.Implementations", "2009e43d-fa42-4e57-a902-2784a8306072", 0x06000AB0, 220, "322B08B64E079F14F2F9BC770348ACE447E5227955CB3BA58FBEA6152B4F5AD6"), // LibraryManager.AddBackMediaPathToAllCollectionFolders
     };
 
     public static void Apply(Version hostVersion)

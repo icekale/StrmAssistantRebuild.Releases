@@ -248,14 +248,14 @@ public static class ExclusiveMediaControl
         { detail = "NoPersistIntegration disables automatic persistence/restore integration only; explicit media APIs and extraction gates remain active. Optional 7/9 consumers must be independently active; combinations with ExtractAlternative remain unsupported."; return true; }
         var selected = features.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
         if (selected.All(name => string.Equals(name, "NoNfoSaverOptimization", StringComparison.OrdinalIgnoreCase) || string.Equals(name, "BlockRemoteFetcher", StringComparison.OrdinalIgnoreCase)))
-        { detail = selected.Length == 0 ? "Default exclusive gate." : "Selected bounded saver/Series-Season-MusicAlbum-BoxSet remote-fetcher consumers must be independently active."; return true; }
+        { detail = selected.Length == 0 ? "Default exclusive gate." : "Selected saver/remote-fetcher consumers must be independently active."; return true; }
         var reasons = selected.Distinct(StringComparer.Ordinal).Select(name => name + ": " + (name switch
         {
             "CatchAllAllow" => "implemented (M156)",
             "CatchAllAllowChapterImage" => "implemented (M159)",
             "CatchAllBlock" => "implemented (M156)",
             "UnconditionalBlock" => "implemented (M156)",
-            "BlockRemoteFetcher" => "implemented only for independently verified parented Series/Season/MusicAlbum/BoxSet provider eligibility", 
+            "BlockRemoteFetcher" => "implemented (M172: original rule for every parented item or extra)",
             "ExtractOnFileChange" => "implemented (M157)",
             "IgnoreFileChange" => "implemented (M157)",
             "IgnoreExtSubChange" => "implemented (M157)",

@@ -145,8 +145,10 @@ public static class ExclusiveEligibility
             return false;
         }
         var id = c.Item.InternalId;
+        // M172: IgnoreFileChange and the final UnconditionalBlock test are global lookups in the original (A:70601 cases 12/14/53).
         var allow = Decide(c.Item, c.Options, c.IsNew, c.Ordinary, AllowAllFor(id), Has(CatchAllBlock, id), Has(UnconditionalBlock, id),
-            fileChanged: c.FileChange?.Changed == true, ignoreFileChange: Has(ExclusiveFileChange.IgnoreFileChange, id));
+            fileChanged: c.FileChange?.Changed == true, ignoreFileChange: selected.Contains(ExclusiveFileChange.IgnoreFileChange),
+            globalUnconditionalBlock: selected.Contains(UnconditionalBlock));
         if (allow && c.FileChange != null) c.FileChange.ProbeAllowed = true;
         Interlocked.Increment(ref allow ? ref allowed : ref denied);
         return allow;
@@ -154,7 +156,7 @@ public static class ExclusiveEligibility
 
     /// <summary>Pure decision table (unit-tested); see the class summary.</summary>
     public static bool Decide(BaseItem item, MetadataRefreshOptions options, bool isNew, bool ordinary, bool catchAllAllow, bool catchAllBlock, bool unconditionalBlock, Func<BaseItem, (bool HasMedia, bool? Incomplete)>? media = null,
-        bool fileChanged = false, bool ignoreFileChange = false)
+        bool fileChanged = false, bool ignoreFileChange = false, bool? globalUnconditionalBlock = null)
     {
         if (item is not (Video or Audio) || item.InternalId <= 0 || isNew) return false;
         // M157: a changed file goes to native ffprobe unless IgnoreFileChange (original metadata prefix L12/L27).
@@ -168,7 +170,8 @@ public static class ExclusiveEligibility
         if (hasMedia && incomplete == false) return false;
         if (!blockSet && !item.IsShortcut) return true;
         if (catchAllBlock && !MetadataOnlyFull(options)) return false;
-        return !unconditionalBlock;
+        // The original's last step reads UnconditionalBlock from the global selection, not the item's task marks.
+        return !(globalUnconditionalBlock ?? unconditionalBlock);
     }
     public static bool MetadataOnlyFull(MetadataRefreshOptions o) =>
         o.MetadataRefreshMode == MetadataRefreshMode.FullRefresh && o.ImageRefreshMode == MetadataRefreshMode.Default && !o.ReplaceAllMetadata && !o.ReplaceAllImages;

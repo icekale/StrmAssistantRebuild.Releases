@@ -66,6 +66,7 @@ public static class ExclusiveFileChange
         var h = hooks;
         if (h == null || isNew || !Eligible(item) || ExclusiveMediaControl.IsOwnedOperation) return null;
         var selected = ExclusiveEligibility.SelectedFor(item.InternalId); // M160: per-item task marks replace the global set
+        var global = ExclusiveEligibility.Selected; // M172: the original reads IgnoreFileChange/ExtractOnFileChange globally only (A:70112 image prefix)
         var state = new State();
         state.OriginalDate = item.DateModified;
         (state.Changed, state.Stamp) = FileChanged(item);
@@ -75,12 +76,12 @@ public static class ExclusiveFileChange
         {
             try { if (h.ExternalTracksChanged(item)) { state.ExtTracksChanged = true; options.EnableRemoteContentProbe = true; } } catch (Exception error) { Fail("external track check", error); }
         }
-        if (!selected.Contains(IgnoreFileChange) && state.Changed)
+        if (!global.Contains(IgnoreFileChange) && state.Changed)
         {
             try { h.Clear(item, state.HadMedia, token); state.Cleared = true; Interlocked.Increment(ref cleared); }
             catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
             catch (Exception error) { Fail("clear", error); /* The original swallows cleanup faults; native refresh continues. */ }
-            if (selected.Contains(ExtractOnFileChange) && state.HadMedia) options.EnableRemoteContentProbe = true;
+            if (global.Contains(ExtractOnFileChange) && state.HadMedia) options.EnableRemoteContentProbe = true;
         }
         if (selected.Contains(ExclusiveEligibility.CatchAllAllow) || selected.Contains(ExclusiveEligibility.CatchAllAllowChapterImage)) options.EnableRemoteContentProbe = true;
         return state;

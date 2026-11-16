@@ -150,10 +150,8 @@ public sealed class MovieDbResponseCache
         if (!Matches(data, key)) return null;
         if (original) Interlocked.Increment(ref originalReads);
         // Optional scalar only: malformed poster metadata never changes native DTO cache validity.
-        var name = isOverride || original ? "original_language" : "SeriesOriginalLanguage";
-        var root = document.RootElement;
-        if (key.Kind == "series" && root.EnumerateObject().Count(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase)) == 1 &&
-            root.TryGetProperty(name, out var language) && language.ValueKind == JsonValueKind.String && language.GetString() is { Length: >= 2 and <= 35 } text)
+        // M171: original Series poster origin is the DTO's languages[0] (all three layouts carry the native DTO), not original_language.
+        if (key.Kind == "series" && FirstSeriesLanguage(data) is { Length: >= 2 and <= 35 } text)
             seriesOriginalLanguage = text;
         return data.Clone();
     }
@@ -174,6 +172,13 @@ public sealed class MovieDbResponseCache
             return Directory.EnumerateFiles(directory, prefix + "*.json").Any();
         }
         catch { return false; }
+    }
+    // Same rule as NativePosterOrdering.FirstSeriesLanguage (kept local: cache tests compile this file alone).
+    private static string? FirstSeriesLanguage(JsonElement data)
+    {
+        if (data.ValueKind != JsonValueKind.Object || data.EnumerateObject().Count(p => p.NameEquals("languages")) != 1) return null;
+        var languages = data.GetProperty("languages");
+        return languages.ValueKind == JsonValueKind.Array && languages.GetArrayLength() != 0 && languages[0].ValueKind == JsonValueKind.String ? languages[0].GetString() : null;
     }
     public static bool Matches(JsonElement data, Key key)
     {

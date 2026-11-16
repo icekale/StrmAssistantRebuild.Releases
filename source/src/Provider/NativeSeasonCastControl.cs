@@ -116,9 +116,11 @@ public static class NativeSeasonCastControl
         __state.Query = Current.Value = new Scope
         {
             State = state, Provider = __instance, Number = number, Token = __1,
-            SuppressCapturedCast = state.EpisodeGroupExtendedInfo && info.SeriesProviderIds.TryGetValue("TmdbEpisodeGroup", out var group) && !string.IsNullOrWhiteSpace(group)
+            SuppressCapturedCast = state.EpisodeGroupExtendedInfo && (Has(info.SeriesProviderIds, "TmdbEg") || Has(info.SeriesProviderIds, "TmdbEpisodeGroup"))
         };
     }
+    // M170: the original key TmdbEg (EpisodeGroupService.ProviderKey) and the pre-M170 rebuild key.
+    private static bool Has(IDictionary<string, string> ids, string key) => ids.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value);
     private static void Detach(Frame? frame)
     {
         if (frame == null || frame.Detached) return;

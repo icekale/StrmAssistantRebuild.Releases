@@ -2,23 +2,23 @@ using System.Reflection;
 using System.Security.Cryptography;
 using HarmonyLib;
 using MediaBrowser.Controller.Entities;
-using MediaBrowser.Controller.Entities.TV;
 using MediaBrowser.Controller.Entities.Audio;
 using MediaBrowser.Controller.Providers;
 using MediaBrowser.Model.Configuration;
 
 namespace StrmAssistantRebuild.Common;
 
-/// <summary>Bounded BlockRemoteFetcher: non-media candidates plus remote metadata in exact ordinary
-/// Movie/Episode/Audio native refresh scopes witnessed at image eligibility, or with no current scope.
-/// Full metadata with image ValidationOnly additionally filters remote-only (not IPreRefreshProvider) metadata.
-/// Direct media enumeration filters metadata only. No file-change/restore effects.</summary>
+/// <summary>M172: BlockRemoteFetcher as the original (decompiled metadata/image CanRefresh prefixes, A:70601/A:70112):
+/// every remote metadata and remote image provider is ineligible for parented items and extras. Pass-throughs: rooted items
+/// (no parent, no ExtraType); remote metadata inside native GetEnabledMetadataProviders (credits, episode lists, external ids);
+/// remote images for a file Video/Audio checked inside the refresh of another, new file Video/Audio (its own refresh blocks, new or not).
+/// The original default exclusive provider rules (M158) apply in the same prefixes.</summary>
 public static class ExclusiveRemoteFetcherControl
 {
     private const string Owner = "StrmAssistantRebuild.ExclusiveRemoteFetcher.4.10.2";
     private const string ProviderType = "Emby.Providers.Manager.ProviderManager";
     private const string Feature = "BlockRemoteFetcher";
-    private const string Coverage = "Exact persisted parented Series/Season/MusicAlbum/BoxSet: metadata and images, including manual queries. Exact rooted file Movie/Episode/Audio with positive ID, nonempty GUID, parent and no ExtraType: remote metadata with no current refresh/owned scope, or in ordinary native RefreshSingleItem scopes witnessed at image eligibility; full metadata with image ValidationOnly also filters remote-only providers (not IPreRefreshProvider), with no Replace/Search/Overwrite. Explicit/invalid scopes, missing image entry, identity drift and other scoped refresh modes stay native. File-change handling is ExclusiveFileChange (M157).";
+    private const string Coverage = "BlockRemoteFetcher (original rule): remote metadata and remote image providers are ineligible for every parented item or extra, including manual image queries. Native pass-throughs: rooted items (no parent, no ExtraType); remote metadata inside native GetEnabledMetadataProviders (person credits, episode lists, external ids); remote images for a file Video/Audio checked inside the refresh of another, new file Video/Audio (an item's own refresh blocks them, new or not). Original-only pass-through without a rebuild counterpart: the SyncMediaInfo native refresh (the rebuild's sync endpoint does not refresh). File-change handling is ExclusiveFileChange (M157).";
     private static readonly Version ExpectedVersion = new(4, 10, 2, 0);
     private static readonly Guid ExpectedMvid = new("29b37ec2-5f02-443c-a995-1f61c71f43c6");
     private static readonly object Gate = new();
@@ -29,6 +29,8 @@ public static class ExclusiveRemoteFetcherControl
     private static volatile bool enabled;
     // M158: blockAll = BlockRemoteFetcher (9) selected; defaultRules = the original default exclusive provider rules.
     private static volatile bool blockAll = true, defaultRules;
+    // Original A_0091 (ThreadStatic, AA:13000): depth of native GetEnabledMetadataProviders on this thread.
+    [ThreadStatic] private static int window;
     public static bool IsEnabled => enabled;
     public static bool BlocksAllRemote => enabled && blockAll;
     public static bool DefaultRulesActive => enabled && defaultRules;
@@ -51,7 +53,6 @@ public static class ExclusiveRemoteFetcherControl
             var ok = Configure(hostVersion, true, Feature, out detail);
             if (!ok) { defaultRules = false; return false; }
             blockAll = nine;
-            if (!nine) ExclusiveSaverControl.RemoteContextEnabled = false;
             defaultRules = true;
             detail = Detail = (nine ? "Enabled: BlockRemoteFetcher plus original default provider rules. " : "Enabled: original default exclusive provider rules (ordinary refresh skips remote providers; screen grab only without Primary). ") + Coverage;
             return true;
@@ -72,7 +73,6 @@ public static class ExclusiveRemoteFetcherControl
                     selected.All(x => string.Equals(x, Feature, StringComparison.OrdinalIgnoreCase)) && HasExpectedPatches())
                     return Report(true, "Unchanged: existing remote eligibility filters retained. ", out detail);
                 enabled = false;
-                ExclusiveSaverControl.RemoteContextEnabled = false;
                 Interlocked.Increment(ref generation);
                 Remove();
                 if (!exclusiveEnabled || selected.Length == 0) return Report(true, "Disabled; native candidates restored. ", out detail);
@@ -90,16 +90,14 @@ public static class ExclusiveRemoteFetcherControl
                 for (var i = 0; i < targets.Length; i++)
                 {
                     Installed.Add(targets[i]);
-                    patcher.Patch(targets[i], prefix: new HarmonyMethod(typeof(ExclusiveRemoteFetcherControl).GetMethod(i == 0 ? nameof(MetadataPrefix) : nameof(ImagePrefix), BindingFlags.NonPublic | BindingFlags.Static)!));
+                    patcher.Patch(targets[i], prefix: new HarmonyMethod(Hook(PrefixName(i))), finalizer: i == 2 ? new HarmonyMethod(Hook(nameof(LeaveWindow))) : null);
                 }
                 enabled = true;
-                ExclusiveSaverControl.RemoteContextEnabled = true;
-                return Report(true, "Enabled: bounded remote provider eligibility filter. ", out detail);
+                return Report(true, "Enabled: remote provider eligibility filter. ", out detail);
             }
             catch (Exception error)
             {
                 enabled = false;
-                ExclusiveSaverControl.RemoteContextEnabled = false;
                 Interlocked.Increment(ref generation);
                 var message = "Inactive: " + error.GetType().Name + ". ";
                 try { Remove(); } catch { message += "Owned cleanup pending; callbacks inactive. "; }
@@ -113,7 +111,6 @@ public static class ExclusiveRemoteFetcherControl
         lock (Gate)
         {
             enabled = false;
-            ExclusiveSaverControl.RemoteContextEnabled = false;
             Interlocked.Increment(ref generation);
             Detail = "Disabled; native candidates restored. " + Coverage;
             try { Remove(); } catch { Detail += " Owned cleanup pending; callbacks inactive."; }
@@ -132,67 +129,73 @@ public static class ExclusiveRemoteFetcherControl
         }
     }
 
+    private static MethodInfo Hook(string name) => typeof(ExclusiveRemoteFetcherControl).GetMethod(name, BindingFlags.NonPublic | BindingFlags.Static)!;
+    private static string PrefixName(int index) => index switch { 0 => nameof(MetadataPrefix), 1 => nameof(ImagePrefix), _ => nameof(EnterWindow) };
+
     private static bool HasExpectedPatches()
     {
-        if (targets.Length != 2 || Installed.Count != 2 || !targets.SequenceEqual(Installed)) return false;
+        if (targets.Length != 3 || Installed.Count != 3 || !targets.SequenceEqual(Installed)) return false;
         for (var i = 0; i < targets.Length; i++)
         {
             var info = Harmony.GetPatchInfo(targets[i]);
-            var expected = typeof(ExclusiveRemoteFetcherControl).GetMethod(i == 0 ? nameof(MetadataPrefix) : nameof(ImagePrefix), BindingFlags.NonPublic | BindingFlags.Static);
             if (info == null || info.Owners.Any(owner => owner != Owner) || info.Prefixes.Count != 1 ||
-                info.Prefixes[0].owner != Owner || info.Prefixes[0].PatchMethod != expected ||
-                info.Postfixes.Count != 0 || info.Transpilers.Count != 0 || info.Finalizers.Count != 0) return false;
+                info.Prefixes[0].owner != Owner || info.Prefixes[0].PatchMethod != Hook(PrefixName(i)) ||
+                info.Postfixes.Count != 0 || info.Transpilers.Count != 0) return false;
+            if (i == 2 ? info.Finalizers.Count != 1 || info.Finalizers[0].owner != Owner || info.Finalizers[0].PatchMethod != Hook(nameof(LeaveWindow)) : info.Finalizers.Count != 0) return false;
         }
         return true;
     }
 
     private static bool ForeignOwner() => targets.Any(m => Harmony.GetPatchInfo(m)?.Owners.Any(o => o != Owner) == true);
-    private static bool ShouldFilter(BaseItem item)
+    /// <summary>BlockRemoteFetcher is selected and this owner alone still holds the three exact targets.</summary>
+    private static bool BlockActive()
     {
-        if (!enabled) return false;
-        if (ForeignOwner())
-        {
-            enabled = false;
-            ExclusiveSaverControl.RemoteContextEnabled = false;
-            Interlocked.Increment(ref generation);
-            Detail = "Inactive: eligibility ownership changed; callbacks inactive. " + Coverage;
-            return false;
-        }
-        if (!blockAll) return false;
-        // Deliberate bounded subset: no URL/protocol tests, opaque refresh guesses or library option mutations.
-        return item != null && (item.GetType() == typeof(Series) || item.GetType() == typeof(Season) ||
-            item.GetType() == typeof(MusicAlbum) || item.GetType() == typeof(BoxSet)) &&
-            item.InternalId > 0 && !item.ExtraType.HasValue && item.Parent != null;
+        if (!enabled || !blockAll) return false;
+        if (!ForeignOwner()) return true;
+        enabled = false;
+        Interlocked.Increment(ref generation);
+        Detail = "Inactive: eligibility ownership changed; callbacks inactive. " + Coverage;
+        return false;
     }
+    /// <summary>Original: an item without a parent that is not an extra keeps native eligibility (library roots, detached items).</summary>
+    private static bool Rooted(BaseItem item) => item.Parent == null && !item.ExtraType.HasValue;
 
-    private static bool MetadataPrefix(IMetadataProvider provider, BaseItem item, LibraryOptions libraryOptions, ref bool __result)
+    // Original prefix/finalizer pair on GetEnabledMetadataProviders: always counted while installed (the native call is synchronous).
+    private static void EnterWindow() => window++;
+    private static void LeaveWindow() { if (window > 0) window--; else window = 0; }
+    internal static bool InsideEnabledProviders => window > 0;
+
+    private static bool MetadataPrefix(IMetadataProvider provider, BaseItem item, ref bool __result)
     {
-        if (provider is not IRemoteMetadataProvider) return true;
-        if (defaultRules && enabled && ExclusiveEligibility.SkipRemoteOnOrdinary(item)) { __result = false; return false; }
-        var block = ShouldFilter(item); // Preserve the existing non-media contract.
-        if (!block && blockAll && HealthyTypedOwner())
-        {
-            var epoch = Volatile.Read(ref generation);
-            block = ExclusiveSaverControl.CanBlockRemoteMetadata(item, libraryOptions, epoch, provider is not IPreRefreshProvider) &&
-                HealthyTypedOwner() && epoch == Volatile.Read(ref generation);
-        }
-        if (!block) return true;
+        if (!enabled || provider is not IRemoteMetadataProvider || item == null || window > 0 || Rooted(item)) return true;
+        if (defaultRules && ExclusiveEligibility.SkipRemoteOnOrdinary(item)) { __result = false; return false; }
+        if (!BlockActive()) return true;
+        Interlocked.Increment(ref metadataBlocked);
         __result = false;
         return false;
     }
 
-    private static bool ImagePrefix(IImageProvider provider, BaseItem item, LibraryOptions libraryOptions, ImageRefreshOptions refreshOptions, ref bool __result)
+    private static bool ImagePrefix(IImageProvider provider, BaseItem item, ImageRefreshOptions refreshOptions, ref bool __result)
     {
-        // First image candidate is the original typed-context boundary, even when it is a local provider.
-        // This owner alone holds 257/256. No second consumer competes for those Harmony targets.
-        if (blockAll && HealthyTypedOwner()) ExclusiveSaverControl.CaptureRemoteRefresh(item, libraryOptions, refreshOptions, Volatile.Read(ref generation));
-        if (defaultRules && enabled && (provider is IRemoteImageProvider && ExclusiveEligibility.SkipRemoteOnOrdinary(item) ||
+        if (!enabled || item == null || Rooted(item)) return true;
+        if (defaultRules && (provider is IRemoteImageProvider && ExclusiveEligibility.SkipRemoteOnOrdinary(item) ||
             provider is IDynamicImageProviderWithLibraryOptions && ExclusiveEligibility.BlockDynamicImage(item)))
         { __result = false; return false; }
-        if (provider is not IRemoteImageProvider || !ShouldFilter(item)) return true;
+        if (provider is not IRemoteImageProvider || !BlockActive()) return true;
+        // Original (A:70112 case 62 / IL_06ea): a context for this same item goes to global 9 and is blocked whether new or not
+        // (without a context the original creates one for this item, so it blocks too). Only a typed file Video/Audio check made
+        // inside the refresh of another, new file Video/Audio (e.g. its extras) keeps remote images.
+        if (refreshOptions is MetadataRefreshOptions && item is Video or Audio && item.IsFileProtocol &&
+            ExclusiveSaverControl.CurrentNativeRefresh is { IsNew: true, Item: Video or Audio } c && c.Item.IsFileProtocol &&
+            c.Item.InternalId != item.InternalId)
+            return true;
+        Interlocked.Increment(ref imagesBlocked);
         __result = false;
         return false;
     }
+    private static long metadataBlocked, imagesBlocked;
+    public static long MetadataBlocked => Interlocked.Read(ref metadataBlocked);
+    public static long ImagesBlocked => Interlocked.Read(ref imagesBlocked);
 
     private static bool HealthyTypedOwner()
     {
@@ -210,12 +213,14 @@ public static class ExclusiveRemoteFetcherControl
             type.GetMethod("CanRefresh", BindingFlags.NonPublic | BindingFlags.Static, null,
                 new[] { typeof(IMetadataProvider), typeof(BaseItem), typeof(LibraryOptions), typeof(bool), typeof(bool), typeof(bool) }, null)!,
             type.GetMethod("CanRefresh", BindingFlags.NonPublic | BindingFlags.Instance, null,
-                new[] { typeof(IImageProvider), typeof(BaseItem), typeof(LibraryOptions), typeof(ImageRefreshOptions), typeof(bool), typeof(bool) }, null)!
+                new[] { typeof(IImageProvider), typeof(BaseItem), typeof(LibraryOptions), typeof(ImageRefreshOptions), typeof(bool), typeof(bool) }, null)!,
+            type.GetMethod("GetEnabledMetadataProviders", BindingFlags.Public | BindingFlags.Instance, null, new[] { typeof(BaseItem), typeof(LibraryOptions) }, null)!
         };
     }
 
     internal static bool Verify(MethodInfo method)
     {
+        if (method?.Name == "GetEnabledMetadataProviders") return VerifyWindow(method);
         if (method == null || method.DeclaringType?.FullName != ProviderType || method.Name != "CanRefresh" ||
             !method.IsPrivate || method.IsAbstract || method.ContainsGenericParameters || method.ReturnType != typeof(bool) ||
             method.Module.ModuleVersionId != ExpectedMvid || method.Module.Assembly.GetName().Name != "Emby.Providers" || method.Module.Assembly.GetName().Version != ExpectedVersion) return false;
@@ -236,6 +241,17 @@ public static class ExclusiveRemoteFetcherControl
         var eh = body.ExceptionHandlingClauses[0];
         return eh.Flags == ExceptionHandlingClauseOptions.Clause && eh.TryOffset == 90 && eh.TryLength == 10 &&
             eh.HandlerOffset == 100 && eh.HandlerLength == 56 && eh.CatchType == typeof(Exception);
+    }
+
+    /// <summary>Native public GetEnabledMetadataProviders: synchronous CanRefresh filter and ToArray (no EH).</summary>
+    private static bool VerifyWindow(MethodInfo method)
+    {
+        var body = method.GetMethodBody(); var il = body?.GetILAsByteArray();
+        return method.DeclaringType?.FullName == ProviderType && method.IsPublic && !method.IsStatic && method.MetadataToken == 0x0600024C &&
+            method.ReturnType == typeof(IMetadataProvider[]) && method.Module.ModuleVersionId == ExpectedMvid && method.Module.Assembly.GetName().Version == ExpectedVersion &&
+            method.GetParameters().Select(p => p.ParameterType).SequenceEqual(new[] { typeof(BaseItem), typeof(LibraryOptions) }) &&
+            body is { InitLocals: true, MaxStackSize: 3, LocalSignatureMetadataToken: 0x110000C8 } && body.ExceptionHandlingClauses.Count == 0 &&
+            il?.Length == 131 && Convert.ToHexString(SHA256.HashData(il)) == "6443EC862D36D5D43AF62D5B9BB21AF2DF4F352A7C98A962DD872326DF9D8CAF";
     }
 
     private static bool FilePin(Assembly assembly, string name, Guid mvid, string hash)

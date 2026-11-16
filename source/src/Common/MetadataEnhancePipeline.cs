@@ -97,7 +97,7 @@ public sealed class MetadataEnhancePipeline : IDisposable
     private bool AnyEnabled()
     {
         var o = options();
-        return o.EnableDoubanAssistScraping || o.ChineseMovieDb || o.ChineseTvdb || o.PinyinSortName || o.EnhanceNfoMetadata || o.MovieDbEpisodeGroup || o.PreferOriginalPoster;
+        return o.EnableDoubanAssistScraping || o.ChineseMovieDb || o.ChineseTvdb || o.PinyinSortName || o.EnhanceNfoMetadata || o.MovieDbEpisodeGroup; // M171: PreferOriginalPoster works inside native lookups, no post-refresh pass.
     }
     private void QueueSeriesCast(BaseItem item)
     {
@@ -123,7 +123,7 @@ public sealed class MetadataEnhancePipeline : IDisposable
         try
         {
             var item = e.Argument.Item;
-            if (!AnyEnabled() || item is not (Movie or Series or Season or Episode or Person) || item.IsLocked) return;
+            if (!AnyEnabled() || item is not (Movie or Series or Season or Episode or Person or BoxSet) || item.IsLocked) return;
             lock (pendingGate)
             {
                 if (enhancing.ContainsKey(item.InternalId)) { if (enhancementFlow.Value != item.InternalId) enhancing[item.InternalId] = true; return; }

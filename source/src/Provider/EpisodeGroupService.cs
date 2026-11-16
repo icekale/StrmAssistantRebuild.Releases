@@ -14,7 +14,17 @@ namespace StrmAssistantRebuild.Provider;
 /// <summary>Group numbering describes the files; aired numbering is used only for remote lookups.</summary>
 public sealed class EpisodeGroupService
 {
-    public const string ProviderKey = "TmdbEpisodeGroup";
+    /// <summary>M170: the original provider id key (MovieDbEpisodeGroupExternalId.StaticName).</summary>
+    public const string ProviderKey = "TmdbEg";
+    /// <summary>Key used by rebuild releases before M170; still read, never written.</summary>
+    public const string LegacyProviderKey = "TmdbEpisodeGroup";
+    /// <summary>A series with a file-order id keeps file numbering; the original then skips episode groups.</summary>
+    public const string FileOrderKey = "fileorder";
+    public static string? Reference(IHasProviderIds? item) => item == null ? null : Reference(item.GetProviderId(ProviderKey), item.GetProviderId(LegacyProviderKey));
+    public static string? Reference(IDictionary<string, string>? ids) => ids == null ? null :
+        Reference(ids.TryGetValue(ProviderKey, out var current) ? current : null, ids.TryGetValue(LegacyProviderKey, out var legacy) ? legacy : null);
+    static string? Reference(string? current, string? legacy) => !string.IsNullOrWhiteSpace(current) ? current : !string.IsNullOrWhiteSpace(legacy) ? legacy : null;
+    public static bool FileOrdered(IHasProviderIds? item) => item != null && !string.IsNullOrWhiteSpace(item.GetProviderId(FileOrderKey));
     readonly ILibraryManager library;
     readonly MetadataLanguageService languages;
     readonly Func<MetadataEnhanceOptions> options;
@@ -33,25 +43,24 @@ public sealed class EpisodeGroupService
         if (!settings.MovieDbEpisodeGroup || item.IsLocked || item is not (Episode or Season)) return false;
         var series = item is Episode episode ? episode.Series : ((Season)item).Series;
         if (series == null) return false;
-        var doc = await LoadAsync(series, token).ConfigureAwait(false);
+        if (FileOrdered(series)) return false;
+        var language = MetadataLanguage(item);
+        var doc = await LoadAsync(series, token, language).ConfigureAwait(false);
         if (doc == null) return false;
+        RecordLocalReference(series, doc, token);
         MetadataLanguageResult? text = null;
         string? tmdbId = null;
         EpisodeGroupInfo? selectedGroup = null;
+        (string? Name, bool SetOverview, string? Overview) seasonText = default;
         if (item is Episode ep)
         {
-            if (!ep.ParentIndexNumber.HasValue || !ep.IndexNumber.HasValue || ep.IndexNumberEnd > ep.IndexNumber) return false;
+            // The original maps by the file's first episode number; a multi-episode file takes the group row of its first episode.
+            if (!ep.ParentIndexNumber.HasValue || !ep.IndexNumber.HasValue) return false;
             var map = doc.Episodes.SingleOrDefault(x => x.GroupSeason == ep.ParentIndexNumber && x.GroupEpisode == ep.IndexNumber);
             if (map == null) return false;
             // Preserve local/group numbering. Never rewrite identity to aired numbering and remap a second time.
+            // Episode text comes only from the aired-coordinate lookup (native language, then the ChineseMovieDb fallbacks).
             text = await languages.FetchEpisodeAsync(ep, map.AiredSeason, map.AiredEpisode, token).ConfigureAwait(false);
-            if (settings.EnableMovieDbEpisodeGroupExtendedInfo)
-            {
-                text ??= new MetadataLanguageResult();
-                var fallback = MetadataLanguageService.ParseLanguages(settings.FallbackLanguages);
-                if (text.Name == null && !string.IsNullOrWhiteSpace(map.Name) && fallback.Any(l => MetadataLanguageService.ContentMatches(map.Name, l))) text.Name = map.Name;
-                if (text.Overview == null && !string.IsNullOrWhiteSpace(map.Overview) && fallback.Any(l => MetadataLanguageService.ContentMatches(map.Overview, l))) text.Overview = map.Overview;
-            }
             if (map.TmdbId != null && text?.AiredTmdbId != null &&
                 !string.Equals(map.TmdbId, text.AiredTmdbId, StringComparison.Ordinal))
                 throw new InvalidDataException("Mapped episode and native result TMDB identities differ.");
@@ -60,15 +69,7 @@ public sealed class EpisodeGroupService
         else if (item is Season season && season.IndexNumber.HasValue)
         {
             selectedGroup = doc.Groups.SingleOrDefault(g => g.Order == season.IndexNumber);
-            if (selectedGroup != null && settings.EnableMovieDbEpisodeGroupExtendedInfo)
-            {
-                var allowed = MetadataLanguageService.ParseLanguages(settings.FallbackLanguages);
-                text = new MetadataLanguageResult
-                {
-                    Name = allowed.Any(l => MetadataLanguageService.ContentMatches(selectedGroup.Name, l)) ? selectedGroup.Name : null,
-                    Overview = allowed.Any(l => MetadataLanguageService.ContentMatches(selectedGroup.Overview, l)) ? selectedGroup.Overview : null
-                };
-            }
+            if (selectedGroup != null) seasonText = SeasonText(season, selectedGroup, settings, language);
         }
         // All asynchronous lookup/parsing finishes before touching the live entity. MetadataFields has
         // no PremiereDate/ProductionYear values on this host; the item-wide lock protects those fields.
@@ -88,7 +89,14 @@ public sealed class EpisodeGroupService
         var changed = false;
         try
         {
-            if (text != null) changed = MetadataLanguageService.ApplyText(item, text, item is Episode && settings.BlockNonFallbackLanguage);
+            if (text != null) changed = MetadataLanguageService.ApplyText(item, text, settings.ChineseMovieDb && settings.BlockNonFallbackLanguage);
+            if (selectedGroup != null)
+            {
+                if (seasonText.SetOverview && !item.IsFieldLocked(MetadataFields.Overview) && item.Overview != seasonText.Overview)
+                { item.Overview = seasonText.Overview; changed = true; }
+                if (seasonText.Name != null && !item.IsFieldLocked(MetadataFields.Name) && item.Name != seasonText.Name)
+                { item.Name = seasonText.Name; changed = true; }
+            }
             foreach (var id in ids) { item.SetProviderId(id.Key, id.Value); changed = true; }
             if (item is Episode && text?.AiredPremiereDate is { } airedDate &&
                 (item.PremiereDate != airedDate || item.ProductionYear != airedDate.Year))
@@ -123,8 +131,41 @@ public sealed class EpisodeGroupService
         }
     }
 
+    /// <summary>
+    /// M170: the original season rule (61850-62031). Extended info on: the group's overview replaces the season overview (even when
+    /// empty) and the native name is dropped. A non-Chinese season language, or a group name in Chinese (or Japanese with ja-JP
+    /// selected), takes the group name; a Chinese season left without a name gets the host's localized "Season N".
+    /// </summary>
+    internal static (string? Name, bool SetOverview, string? Overview) SeasonText(Season season, EpisodeGroupInfo group, MetadataEnhanceOptions settings, string? language)
+    {
+        var extended = settings.EnableMovieDbEpisodeGroupExtendedInfo;
+        var zh = language?.StartsWith("zh", StringComparison.OrdinalIgnoreCase) == true;
+        var name = extended ? null : season.Name;
+        if (!zh || ChineseTextRules.Localized(group.Name, ChineseTextRules.JapaneseFallback(settings))) name = group.Name;
+        if (zh && string.IsNullOrEmpty(name) && season.IndexNumber is int number &&
+            BaseItem.LocalizationManager?.GetLocalizedString("NameSeasonNumber", language) is { Length: > 0 } format)
+            name = string.Format(CultureInfo.InvariantCulture, format, number);
+        return (string.IsNullOrEmpty(name) ? null : name, extended, group.Overview);
+    }
+
+    string? MetadataLanguage(BaseItem item)
+    {
+        try { return item.GetPreferredMetadataLanguage(library.GetLibraryOptions(item)); }
+        catch (Exception ex) when (ex is NullReferenceException or InvalidOperationException) { return null; }
+    }
+
+    /// <summary>The original stores a local group file's id on the series (TmdbEg) so the external-id link works.</summary>
+    void RecordLocalReference(Series series, EpisodeGroupDocument doc, CancellationToken token)
+    {
+        if (!doc.Local || series.IsLocked || Reference(series) != null || string.IsNullOrWhiteSpace(doc.Id) ||
+            doc.Id.Length > 128 || !doc.Id.All(c => AsciiAlphanumeric(c) || c is '-' or '_')) return;
+        series.SetProviderId(ProviderKey, doc.Id);
+        try { MetadataLanguageService.Persist(library, series, token); }
+        catch { series.ProviderIds.Remove(ProviderKey); throw; }
+    }
+
     public static bool HasGroupSource(Series? series, MetadataEnhanceOptions settings) =>
-        series != null && HasGroupSource(series.Path, series.GetProviderId(ProviderKey), settings, series.GetProviderId(MetadataProviders.Tmdb));
+        series != null && !FileOrdered(series) && HasGroupSource(series.Path, Reference(series), settings, series.GetProviderId(MetadataProviders.Tmdb));
     /// <summary>Same rule from a series path and group reference (e.g. a SeriesInfo lookup).</summary>
     public static bool HasGroupSource(string? seriesPath, string? reference, MetadataEnhanceOptions settings, string? seriesTmdbId = null) =>
         !string.IsNullOrWhiteSpace(reference) || OriginalOverridePath(seriesTmdbId) is { } o && File.Exists(o) ||
@@ -146,11 +187,17 @@ public sealed class EpisodeGroupService
         return Path.Combine(root, "override", "tmdb-tv", seriesTmdbId, "episodegroup.json");
     }
 
-    public Task<EpisodeGroupDocument?> LoadAsync(Series series, CancellationToken token) =>
-        LoadAsync(series.Path, series.GetProviderId(ProviderKey), token, series.GetProviderId(MetadataProviders.Tmdb));
+    public Task<EpisodeGroupDocument?> LoadAsync(Series series, CancellationToken token, string? language = null) =>
+        LoadAsync(series.Path, Reference(series), token, series.GetProviderId(MetadataProviders.Tmdb), language);
 
-    public async Task<EpisodeGroupDocument?> LoadAsync(string? seriesPath, string? reference, CancellationToken token, string? seriesTmdbId = null)
+    static bool AsciiAlphanumeric(char c) => c is >= 'a' and <= 'z' or >= 'A' and <= 'Z' or >= '0' and <= '9';
+    /// <summary>A host metadata language usable as the TMDB language parameter, else null.</summary>
+    internal static string? GroupLanguage(string? language) =>
+        language is { Length: >= 2 and <= 16 } && language.All(c => AsciiAlphanumeric(c) || c == '-') ? language : null;
+
+    public async Task<EpisodeGroupDocument?> LoadAsync(string? seriesPath, string? reference, CancellationToken token, string? seriesTmdbId = null, string? language = null)
     {
+        language = GroupLanguage(language);
         token.ThrowIfCancellationRequested();
         var settings = options();
         if (OriginalOverridePath(seriesTmdbId) is { } overridePath && File.Exists(overridePath))
@@ -159,6 +206,7 @@ public sealed class EpisodeGroupService
             {
                 await using var stream = File.OpenRead(paths.RequireWritablePath(overridePath));
                 var document = Parse(await MetadataLanguageService.ReadBoundedAsync(stream, 4 * 1024 * 1024, token).ConfigureAwait(false));
+                document.Local = true;
                 Interlocked.Increment(ref originalOverrideReads);
                 return document;
             }
@@ -172,7 +220,9 @@ public sealed class EpisodeGroupService
                 var sidecar = Path.Combine(seriesPath, name);
                 if (!File.Exists(sidecar)) continue;
                 await using var stream = File.OpenRead(sidecar);
-                return Parse(await MetadataLanguageService.ReadBoundedAsync(stream, 4 * 1024 * 1024, token).ConfigureAwait(false));
+                var local = Parse(await MetadataLanguageService.ReadBoundedAsync(stream, 4 * 1024 * 1024, token).ConfigureAwait(false));
+                local.Local = true;
+                return local;
             }
         }
         if (string.IsNullOrWhiteSpace(reference)) return null;
@@ -182,7 +232,9 @@ public sealed class EpisodeGroupService
         var relative = "tv/episode_group/" + Uri.EscapeDataString(reference);
         // Namespace native ID requests by the exact public endpoint, not by credentials. Old ID-only
         // files have ambiguous origin and are left untouched rather than silently trusted or deleted.
-        var identity = external ? reference : "tmdb-v2:" + MetadataLanguageService.TmdbEndpoint(settings, relative).AbsoluteUri;
+        // M170: the original requests group names in the season's metadata language; the language is part of the cache identity.
+        var query = language == null ? null : "language=" + Uri.EscapeDataString(language);
+        var identity = external ? reference : "tmdb-v2:" + MetadataLanguageService.TmdbEndpoint(settings, relative).AbsoluteUri + (query == null ? "" : "?" + query);
         var cacheKey = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(identity)));
         var cache = paths.RequireWritablePath(Path.Combine(cacheRoot, "episode-groups", cacheKey + ".json"));
         var cacheTime = File.Exists(cache) ? File.GetLastWriteTimeUtc(cache) : DateTime.MinValue;
@@ -204,7 +256,7 @@ public sealed class EpisodeGroupService
         if (external) bytes = await MetadataLanguageService.ReadHttpAsync(http, new Uri(reference), 4 * 1024 * 1024, token).ConfigureAwait(false);
         else
         {
-            using var result = await MetadataLanguageService.GetTmdbAsync(http, settings, relative, token).ConfigureAwait(false);
+            using var result = await MetadataLanguageService.GetTmdbAsync(http, settings, relative, token, query).ConfigureAwait(false);
             if (result == null) return null;
             bytes = Encoding.UTF8.GetBytes(result.RootElement.GetRawText());
         }
@@ -289,6 +341,8 @@ public sealed class EpisodeGroupService
 public sealed class EpisodeGroupDocument
 {
     public string? Id { get; set; }
+    /// <summary>Read from the original override file or a series sidecar, not from TMDB or the remote cache.</summary>
+    public bool Local { get; set; }
     public List<EpisodeGroupInfo> Groups { get; } = new();
     public List<EpisodeGroupMapping> Episodes { get; } = new();
 }

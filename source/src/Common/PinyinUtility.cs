@@ -61,6 +61,12 @@ public static class PinyinUtility
     public static string ToTraditional(string? text) =>
         string.IsNullOrEmpty(text) ? string.Empty : WordsHelper.ToTraditionalChinese(text, 0);
 
+    /// <summary>M170: region-aware variants (0 standard, 1 Hong Kong, 2 Taiwan) for the original metadata conversion.</summary>
+    public static string ToSimplified(string? text, int region) =>
+        string.IsNullOrEmpty(text) ? string.Empty : WordsHelper.ToSimplifiedChinese(text, region);
+    public static string ToTraditional(string? text, int region) =>
+        string.IsNullOrEmpty(text) ? string.Empty : WordsHelper.ToTraditionalChinese(text, region);
+
     /// <summary>
     /// Whole-title search variants, not a word-segmentation index: original/simplified/traditional,
     /// full pinyin and initials, plus punctuation/whitespace-free forms. Ordinal lowercase, deduplicated.

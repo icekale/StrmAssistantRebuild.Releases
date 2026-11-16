@@ -36,7 +36,6 @@ public static class ExclusiveSaverControl
     private static long generation;
     private static volatile bool enabled;
     private static bool noNfo;
-    internal static volatile bool RemoteContextEnabled;
     public static bool IsEnabled => enabled;
     public static bool IsHealthy
     {
@@ -147,14 +146,11 @@ public static class ExclusiveSaverControl
         // Explicit scopes keep their existing saver-only meaning. Only the actual public native entry
         // creates this envelope; neither metadata enumeration nor EnterRefresh can manufacture readiness.
         if (nativeOrigin) { snapshot.Item = item; snapshot.Options = refresh; }
-        if (nativeOrigin && RemoteContextEnabled && (item.GetType() == typeof(Movie) || item.GetType() == typeof(Episode) || item.GetType() == typeof(Audio)))
-            try { snapshot.Remote = new RemoteRefresh(item, refresh, libraryOptions); }
-            catch { /* An optional new consumer must never fault the existing saver/native refresh. */ }
         return Enter(0, snapshot);
     }
 
     private sealed record RefreshContext(long ItemId, bool IsNew, bool Ordinary, bool HasFetchers)
-    { internal RemoteRefresh? Remote; internal Func<Task>? SuccessTail; internal BaseItem? Item; internal MetadataRefreshOptions? Options; internal ExclusiveFileChange.State? FileChange; }
+    { internal Func<Task>? SuccessTail; internal BaseItem? Item; internal MetadataRefreshOptions? Options; internal ExclusiveFileChange.State? FileChange; }
     /// <summary>M156: the innermost live native RefreshSingleItem envelope (item, typed options), for original eligibility rules.</summary>
     internal static (BaseItem Item, MetadataRefreshOptions Options, bool IsNew, bool Ordinary, ExclusiveFileChange.State? FileChange)? CurrentNativeRefresh
     {
@@ -221,147 +217,6 @@ public static class ExclusiveSaverControl
             catch (Exception error) { try { report?.Invoke(id, error); } catch { } }
             token.ThrowIfCancellationRequested();
         };
-    }
-
-    // This consumer needs typed identity, not file-change state. No file/stream reads or unused 0 framework.
-    private sealed class RemoteRefresh
-    {
-        internal readonly BaseItem Item;
-        internal readonly Guid Guid;
-        internal readonly long Id;
-        private readonly long parentId;
-        private readonly MediaBrowser.Model.Entities.ExtraType? extraType;
-        private readonly bool wasNew;
-        private BaseItem? parentWitness;
-        internal readonly string Path;
-        internal readonly MetadataRefreshOptions Options;
-        internal readonly LibraryOptions Library;
-        private readonly object? directory;
-        private readonly MetadataRefreshMode metadataMode, imageMode;
-        private readonly bool replaceMetadata, replaceImages, overwrite, forceSave;
-        private readonly object? searchResult;
-        private readonly TypeOptions[]? typeArray;
-        private readonly (TypeOptions? Option, string? Type, string[]? Array, string[]? Values)[] typeSnapshot;
-        internal bool Attempted, Ready;
-        internal long RemoteEpoch;
-        internal RemoteRefresh(BaseItem item, MetadataRefreshOptions options, LibraryOptions library)
-        {
-            Item = item; Guid = item.Id; Id = item.InternalId; Path = item.Path;
-            parentId = item.ParentId; extraType = item.ExtraType; wasNew = item.DateLastRefreshed == DateTimeOffset.MinValue;
-            Options = options; Library = library; directory = options.DirectoryService;
-            metadataMode = options.MetadataRefreshMode; imageMode = options.ImageRefreshMode;
-            replaceMetadata = options.ReplaceAllMetadata; replaceImages = options.ReplaceAllImages;
-            overwrite = options.OverwriteLocalMetadataProviderIds; forceSave = options.ForceSave; searchResult = options.SearchResult;
-            typeArray = library.TypeOptions;
-            typeSnapshot = (typeArray ?? Array.Empty<TypeOptions>()).Select(o => ((TypeOptions?)o, o?.Type, o?.MetadataFetchers, o?.MetadataFetchers?.ToArray())).ToArray();
-        }
-        internal bool Matches(BaseItem item, LibraryOptions library, ImageRefreshOptions? options = null)
-        {
-            if (!ReferenceEquals(item, Item) || item.Id != Guid || item.InternalId != Id || item.Path != Path ||
-                item.ParentId != parentId || item.ExtraType != extraType || (item.DateLastRefreshed == DateTimeOffset.MinValue) != wasNew ||
-                !ReferenceEquals(library, Library) || (options != null && !ReferenceEquals(options, Options)) ||
-                !ReferenceEquals(directory, Options.DirectoryService) || Options.MetadataRefreshMode != metadataMode ||
-                Options.ImageRefreshMode != imageMode || Options.ReplaceAllMetadata != replaceMetadata ||
-                Options.ReplaceAllImages != replaceImages || Options.OverwriteLocalMetadataProviderIds != overwrite ||
-                Options.ForceSave != forceSave || !ReferenceEquals(Options.SearchResult, searchResult) ||
-                !ReferenceEquals(typeArray, library.TypeOptions)) return false;
-            for (var i = 0; i < typeSnapshot.Length; i++)
-            {
-                var saved = typeSnapshot[i]; var current = typeArray![i];
-                if (!ReferenceEquals(current, saved.Option) || current?.Type != saved.Type ||
-                    !ReferenceEquals(current?.MetadataFetchers, saved.Array) ||
-                    (saved.Values != null && !saved.Values.SequenceEqual(current!.MetadataFetchers))) return false;
-            }
-            return true;
-        }
-        internal bool FullMetadataValidationOnly => metadataMode == MetadataRefreshMode.FullRefresh && imageMode == MetadataRefreshMode.ValidationOnly;
-        internal bool Bounded() => Id > 0 && Guid != System.Guid.Empty && !string.IsNullOrWhiteSpace(Path) &&
-            System.IO.Path.IsPathRooted(Path) && (Item.GetType() == typeof(Movie) || Item.GetType() == typeof(Episode) || Item.GetType() == typeof(Audio)) &&
-            ((metadataMode <= MetadataRefreshMode.Default && imageMode <= MetadataRefreshMode.Default) || FullMetadataValidationOnly) &&
-            !replaceMetadata && !replaceImages && !overwrite && searchResult == null &&
-            !Item.ExtraType.HasValue && Item.IsFileProtocol && SameParent();
-        private bool SameParent()
-        {
-            var parent = Item.Parent;
-            if (parent == null) return false;
-            if (parentWitness == null) parentWitness = parent; // Late native resolution, not a second entry lookup.
-            return ReferenceEquals(parentWitness, parent);
-        }
-    }
-
-    private static Scope? RemoteScope(BaseItem item)
-    {
-        Scope? refresh = null;
-        var sawOwned = false;
-        long ownedId = 0;
-        for (var scope = LiveScope(); scope != null; scope = scope.Parent)
-        {
-            if (!sawOwned && scope.Refresh == null) { sawOwned = true; ownedId = scope.OwnedItemId; }
-            refresh ??= scope.Refresh != null ? scope : null; // Never borrow an outer refresh over the nearest one.
-        }
-        return ownedId != 0 && ownedId == item.InternalId ? null : refresh;
-    }
-
-    internal static void CaptureRemoteRefresh(BaseItem item, LibraryOptions library, ImageRefreshOptions options, long remoteEpoch)
-    {
-        RemoteRefresh? context = null;
-        try
-        {
-            var scope = RemoteScope(item);
-            context = scope?.Refresh?.Remote;
-            if (context == null) return;
-            lock (context)
-            {
-                if (context.Attempted) { if (!context.Matches(item, library, options)) context.Ready = false; return; }
-                context.Attempted = true; // An invalid first observation never recaptures a replacement identity.
-                if (!enabled || !HealthyTypedPatches() || !context.Matches(item, library, options) || !context.Bounded()) return;
-                // IsFileProtocol/Parent may call services. Revalidate after those callbacks, including both epochs.
-                context.Ready = enabled && HealthyTypedPatches() && ReferenceEquals(scope, RemoteScope(item)) && context.Matches(item, library, options);
-                context.RemoteEpoch = remoteEpoch;
-            }
-        }
-        catch { if (context != null) { context.Attempted = true; context.Ready = false; } }
-    }
-
-    // A revoked/invalid scope is not an absent scope. This direct query never creates refresh authority.
-    private static bool CanBlockUnscopedMetadata(BaseItem item)
-    {
-        if (!enabled || Current.Value != null || !HealthyTypedPatches() || item == null) return false;
-        var epoch = Volatile.Read(ref generation);
-        var type = item.GetType();
-        if (type != typeof(Movie) && type != typeof(Episode) && type != typeof(Audio)) return false;
-        var id = item.InternalId; var guid = item.Id; var path = item.Path;
-        var parentId = item.ParentId; var extra = item.ExtraType;
-        if (id <= 0 || guid == Guid.Empty || extra.HasValue || string.IsNullOrWhiteSpace(path) ||
-            !System.IO.Path.IsPathRooted(path) || !item.IsFileProtocol) return false;
-        var parent = item.Parent; // Prefer the native cached/lookup path; no new file or restore reads.
-        if (parent == null || !ReferenceEquals(parent, item.Parent)) return false;
-        // Both getters may call services. Check the actual current value and both identities afterwards.
-        return enabled && HealthyTypedPatches() && epoch == Volatile.Read(ref generation) && Current.Value == null &&
-            item.InternalId == id && item.Id == guid && item.Path == path && item.ParentId == parentId && item.ExtraType == extra;
-    }
-
-    internal static bool CanBlockRemoteMetadata(BaseItem item, LibraryOptions library, long remoteEpoch, bool allowFull)
-    {
-        RemoteRefresh? context = null;
-        try
-        {
-            if (Current.Value == null) return CanBlockUnscopedMetadata(item);
-            var scope = RemoteScope(item);
-            context = scope?.Refresh?.Remote;
-            if (context == null) return false;
-            lock (context)
-            {
-                if (!context.Ready) return false;
-                var valid = enabled && HealthyTypedPatches() && context.RemoteEpoch == remoteEpoch &&
-                    context.Matches(item, library) && context.Bounded() && enabled && HealthyTypedPatches() &&
-                    ReferenceEquals(scope, RemoteScope(item)) && context.Matches(item, library);
-                if (!valid) context.Ready = false;
-                // A dual-interface provider is ineligible only for this extra mode, not a revoked scope.
-                return valid && (allowFull || !context.FullMetadataValidationOnly);
-            }
-        }
-        catch { if (context != null) context.Ready = false; return false; }
     }
 
     private static Scope Enter(long ownedItemId, RefreshContext? refresh)

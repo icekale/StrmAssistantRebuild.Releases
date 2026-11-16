@@ -25,7 +25,7 @@ namespace StrmAssistantRebuild.Provider;
 public static class NativePosterOrdering
 {
     private const string Owner = "StrmAssistantRebuild.NativePosterOrdering.4.10.2";
-    private const string Coverage = "Queries include all languages. Matching queries in a pinned non-nested synchronous refresh scope clear their provider-name filter, including synchronous manual callbacks. Outside-scope, ambiguous and post-kickoff queries retain it. Prior query mutations are not rolled back. Native type/library/disabled-provider admission stays unchanged. Successful healthy identity-stable queries for the current five item kinds remove Douban candidates (OrdinalIgnoreCase, no trim) and globally order all remaining native-admitted image types; the native query type/provider/disabled filters and provider calls remain unchanged, including explicit Douban-only queries. TMDB original language takes precedence over TVDB Movie/Series typed originalLanguage, then current Movie/Series OriginalTitle policy (kana > Hangul > BMP Han > nonempty default en). Exact Season/Episode with a positive unchanged SeriesId use the late native associated Series OriginalTitle. Zero SeriesId follows at most 64 late native GetParent edges, respecting the native cached parent, then re-resolves the first Series through the same library (up to 65 library lookups including re-resolution). Negative SeriesId, absent/invalid/cyclic/over-budget relations and same-ID different-Guid re-resolution retain native results including Douban. Only the additional title walk is bounded: the unchanged native entry preferred-language helper may traverse ancestors without a bound. Parent/path identity and native parent-cache transitions are finite late observations, not atomic or cross-await parent identity guarantees. Exact BoxSet uses one late native LibraryManager.GetItemList query with CollectionIds=[InternalId] and Limit=10, leaving all other native defaults unchanged. Up to ten returned member OriginalTitle values are joined with '|'; its own title/name never substitutes. Members and library reference are observed late and rechecked after title/locale getters, not an atomic database-membership snapshot. The synchronous library query may perform IO; no origin HTTP request is added. A selected Chinese origin uses the late library PreferredMetadataLanguage when its raw hyphen-delimited family is zh and its lower-case value passes the existing language validator; this only changes the local origin. Preferred image language remains the native entry snapshot. Backdrop and Episode raw null/empty-language eligible slots share preferred-exact priority. Entry null/Backdrop queries in the exact verified TMDB Movie/Series image operation expand GetBackdrops to unchanged source image references in native rating/count order. Only newly allocated native Backdrop results for those exact references receive nonempty non-xx raw source language with a nonempty path; existing null/empty/xx language remains native. Thumb candidates, DTOs and caches stay untouched; no dictionary-language rewriting. Other item/provider/helper calls retain native admission. Admission is query-entry scoped; later native query-type filtering stays native. OFF/identity changes before admission prevent expansion, but already admitted candidates are not rolled back. Title labels are heuristics, not captured provider language or cache data. TMDB Series uses existing buffered HTTP JSON (up to 2 MiB) or validated detail-cache language. Ordinary absent language and empty title/member list still apply preferred-only ordering and raw-empty Backdrop/Episode priority. Failed identity/state/parent/library observations retain the complete native result, including Douban. No request replay or image writes.";
+    private const string Coverage = "Queries include all languages. Matching queries in a pinned non-nested synchronous refresh scope clear their provider-name filter, including synchronous manual callbacks. Outside-scope, ambiguous and post-kickoff queries retain it. Prior query mutations are not rolled back. Native type/library/disabled-provider admission stays unchanged. Successful healthy identity-stable queries for the current five item kinds remove Douban candidates (OrdinalIgnoreCase, no trim) and globally order all remaining native-admitted image types; the native query type/provider/disabled filters and provider calls remain unchanged, including explicit Douban-only queries. TMDB original language takes precedence over TVDB Movie/Series typed originalLanguage, then current Movie/Series OriginalTitle policy (kana > Hangul > BMP Han > nonempty default en). Exact Season/Episode with a positive unchanged SeriesId use the late native associated Series OriginalTitle. Zero SeriesId follows at most 64 late native GetParent edges, respecting the native cached parent, then re-resolves the first Series through the same library (up to 65 library lookups including re-resolution). Negative SeriesId, absent/invalid/cyclic/over-budget relations and same-ID different-Guid re-resolution retain native results including Douban. Only the additional title walk is bounded. Parent/path identity and native parent-cache transitions are finite late observations, not atomic or cross-await parent identity guarantees. Exact BoxSet uses one late native LibraryManager.GetItemList query with CollectionIds=[InternalId] and Limit=10, leaving all other native defaults unchanged. Up to ten returned member OriginalTitle values are joined with '|'; its own title/name never substitutes. Members and library reference are observed late and rechecked after title/locale getters, not an atomic database-membership snapshot. The synchronous library query may perform IO; no origin HTTP request is added. A selected Chinese origin uses the late library PreferredMetadataLanguage when its raw hyphen-delimited family is zh and its lower-case value passes the existing language validator; this only changes the local origin. Preferred image language is the raw library PreferredImageLanguage read late after the native query (no item/ancestor fallback). Backdrop and Episode raw null/empty-language eligible slots share preferred-exact priority. Entry null/Backdrop queries in the exact verified TMDB Movie/Series image operation, or the single verified TMDB BoxSet provider within an exact BoxSet query, expand GetBackdrops to unchanged source image references in native rating/count order. Only newly allocated native Backdrop results for those exact references receive nonempty non-xx raw source language with a nonempty path; existing null/empty/xx language remains native. Thumb candidates, DTOs and caches stay untouched; no dictionary-language rewriting. Other item/provider/helper calls retain native admission. Admission is query-entry scoped; later native query-type filtering stays native. OFF/identity changes before admission prevent expansion, but already admitted candidates are not rolled back. Title labels are heuristics, not captured provider language or cache data. TMDB Series uses languages[0] (as the original) from existing buffered HTTP JSON (up to 2 MiB) or the validated detail-cache DTO. TMDB Movie origin needs a TMDB id: the native image provider fetches by TMDB id only, and no cross-item IMDb language cache is kept. Ordinary absent language and empty title/member list still apply preferred-only ordering and raw-empty Backdrop/Episode priority. Failed identity/state/parent/library observations retain the complete native result, including Douban. No request replay or image writes.";
     private const int MaxResponseBytes = 2 * 1024 * 1024;
     private enum Kind { Movie, Series, Season, Episode, BoxSet }
     private static readonly object Gate = new();
@@ -56,7 +56,7 @@ public static class NativePosterOrdering
     private static MethodInfo[] installed = Array.Empty<MethodInfo>();
     private static long generation;
     private sealed record State(IProviderManager Manager, MethodInfo QueryMethod, MethodInfo? MovieMethod, MethodInfo? MovieImages, IImageProvider? MovieProvider, MethodInfo? IdGetter, MethodInfo? LanguageGetter, MethodInfo? CaptureMethod, MethodInfo[] Barriers, MethodInfo? SeriesMove, MethodInfo? SeriesImages, IImageProvider? SeriesProvider, Type? OffsetType, TvdbBinding? TvdbMovie, TvdbBinding? TvdbSeries, MethodInfo? RefreshEntry, MethodInfo? RefreshMove, FieldInfo? RefreshManager, BackdropBinding? Backdrops, long Generation);
-    private sealed record BackdropBinding(MethodInfo Helper, MethodInfo MovieConvert, MethodInfo? SeriesConvert, FieldInfo List, FieldInfo File, FieldInfo Iso, FieldInfo Average, FieldInfo Votes, FieldInfo MovieOwner, FieldInfo? SeriesOwner);
+    private sealed record BackdropBinding(MethodInfo Helper, MethodInfo MovieConvert, MethodInfo? SeriesConvert, FieldInfo List, FieldInfo File, FieldInfo Iso, FieldInfo Average, FieldInfo Votes, FieldInfo MovieOwner, FieldInfo? SeriesOwner, MethodInfo? BoxSetConvert = null, FieldInfo? BoxSetOwner = null, IImageProvider? BoxSetProvider = null);
     // Exactly two native TVDB adapters; this is not an extensible provider registry.
     private sealed record TvdbBinding(Kind Kind, IImageProvider Provider, MethodInfo Images, MethodInfo Move, MethodInfo Detail, MethodInfo IdGetter, MethodInfo LanguageGetter, MethodInfo InstanceGetter, MethodInfo ConvertLanguage);
     private sealed class TvdbOperation
@@ -97,10 +97,10 @@ public static class NativePosterOrdering
         public Type ItemType = null!;
         public string? RawTmdbId, RawTvdbId;
         public RemoteImageFetchOptions? MovieOptions, SeriesOptions, TvdbOptions;
-        public TmdbOperation? MovieOperation;
+        public TmdbOperation? MovieOperation, BoxSetOperation;
         public Kind Kind;
         public int TmdbId, MovieOperations, SeriesOperations, TvdbId, TvdbOperations;
-        public string Preferred = "", Language = "", TvdbLanguage = "";
+        public string Language = "", TvdbLanguage = "";
         public bool Closed, AllowBackdropExpansion;
     }
     // Observed only after query success; no additional entry Series title/identity lookup or cross-await parent-generation claim.
@@ -168,7 +168,8 @@ public static class NativePosterOrdering
                 var seriesMove = movie != null && series?.Length == 1 && series[0].GetType().Assembly == native!.Assembly && VerifySeries(series[0].GetType())
                     ? (MethodInfo)movie.Module.ResolveMethod(0x0600041B)! : null;
                 var refresh = BindRefresh(query);
-                var backdrops = movie == null ? null : BindBackdrops(movie, seriesMove != null);
+                var boxSets = providers?.Where(p => p.GetType().FullName == "MovieDb.MovieDbBoxSetImageProvider").ToArray();
+                var backdrops = movie == null ? null : BindBackdrops(movie, seriesMove != null, boxSets?.Length == 1 && boxSets[0].GetType().Assembly == native!.Assembly ? boxSets[0] : null);
                 var next = new State(manager, query, movie, movie == null ? null : (MethodInfo)movie.Module.ResolveMethod(0x060000D8)!, movie == null ? null : movies![0], resultType?.GetProperty("id")!.GetMethod, resultType?.GetProperty("original_language")!.GetMethod, resultType == null ? null : typeof(NativePosterOrdering).GetMethod(nameof(Capture), BindingFlags.Static | BindingFlags.NonPublic)!.MakeGenericMethod(resultType), barriers, seriesMove, seriesMove == null ? null : (MethodInfo)movie!.Module.ResolveMethod(0x0600013F)!, seriesMove == null ? null : series![0], BindOffsetType(), tvdbMovie, tvdbSeries, refresh.Entry, refresh.Move, refresh.Manager, backdrops, ++generation);
                 if (Occupied(next)) { detail = Detail = "Inactive: candidate hook target already occupied. " + Coverage; return false; }
                 installed = Targets(next).ToArray();
@@ -195,13 +196,14 @@ public static class NativePosterOrdering
                     patcher.Patch(backdrops.Helper, prefix: Hook(nameof(BeforeBackdrops)));
                     patcher.Patch(backdrops.MovieConvert, postfix: Hook(nameof(AfterBackdrop)));
                     if (backdrops.SeriesConvert != null) patcher.Patch(backdrops.SeriesConvert, postfix: Hook(nameof(AfterBackdrop)));
+                    if (backdrops.BoxSetConvert != null) patcher.Patch(backdrops.BoxSetConvert, postfix: Hook(nameof(AfterBackdrop)));
                 }
                 // Recompile pinned callers that optimized JIT may already have inlined before the option was enabled.
                 foreach (var caller in barriers)
                     if (caller.Module == movie?.Module) patcher.Patch(caller, prefix: Hook(nameof(BeforeMovieMove)), transpiler: Hook(nameof(ObserveMovieCompletion)), finalizer: Hook(nameof(FinishMovieImages)));
                     else patcher.Patch(caller, prefix: Hook(nameof(CallerBarrier)));
                 Volatile.Write(ref active, next);
-                detail = Detail = $"Active adapters: TMDB Movie={movie != null}, Series={seriesMove != null}; TVDB Movie={tvdbMovie != null}, Series={tvdbSeries != null}; refresh query={next.RefreshEntry != null}; API late entry={apiCaller != null} ({apiDetail}). " + Coverage;
+                detail = Detail = $"Active adapters: TMDB Movie={movie != null}, Series={seriesMove != null}, BoxSet backdrops={backdrops?.BoxSetConvert != null}; TVDB Movie={tvdbMovie != null}, Series={tvdbSeries != null}; refresh query={next.RefreshEntry != null}; API late entry={apiCaller != null} ({apiDetail}). " + Coverage;
                 return true;
             }
             catch (Exception error)
@@ -219,7 +221,7 @@ public static class NativePosterOrdering
     private static void CallerBarrier() { }
     private static IEnumerable<TvdbBinding> TvdbBindings(State state) => new[] { state.TvdbMovie, state.TvdbSeries }.Where(b => b != null).Cast<TvdbBinding>();
     private static IEnumerable<MethodInfo> Targets(State state) => new[] { state.QueryMethod }.Concat(state.MovieMethod == null ? Array.Empty<MethodInfo>() : new[] { state.MovieMethod }).Concat(state.Barriers).Concat(state.SeriesMove == null ? Array.Empty<MethodInfo>() : new[] { state.SeriesMove, state.SeriesImages! }).Concat(TvdbBindings(state).SelectMany(b => new[] { b.Images, b.Move })).Concat(state.RefreshEntry == null ? Array.Empty<MethodInfo>() : new[] { state.RefreshEntry }).Concat(BackdropTargets(state));
-    private static IEnumerable<MethodInfo> BackdropTargets(State state) => state.Backdrops == null ? Array.Empty<MethodInfo>() : new[] { state.Backdrops.Helper, state.Backdrops.MovieConvert }.Concat(state.Backdrops.SeriesConvert == null ? Array.Empty<MethodInfo>() : new[] { state.Backdrops.SeriesConvert });
+    private static IEnumerable<MethodInfo> BackdropTargets(State state) => state.Backdrops == null ? Array.Empty<MethodInfo>() : new[] { state.Backdrops.Helper, state.Backdrops.MovieConvert, state.Backdrops.SeriesConvert, state.Backdrops.BoxSetConvert }.Where(m => m != null).Cast<MethodInfo>();
     private static bool Occupied(State state) => Targets(state).Any(m => Harmony.GetPatchInfo(m)?.Owners.Any() == true) || state.MovieImages != null && !Unpatched(state.MovieImages);
     // Cache compatibility is limited to this exact transpiler, not an owner-name whitelist.
     internal static bool OwnsSeriesResponsePatch(MethodInfo method)
@@ -240,7 +242,8 @@ public static class NativePosterOrdering
         TvdbBindings(state).All(b => ExactTranspiler(b.Move, nameof(ObserveTvdbDetail)) && ExactPatches(b.Images, nameof(BeforeTvdbImages), nameof(AfterTvdbImages), finalizer: nameof(FinishTvdbImages))) &&
         (state.RefreshEntry == null || ExactPatches(state.RefreshEntry, prefix: nameof(BeforeRefresh), finalizer: nameof(FinishRefresh)) && Unpatched(state.RefreshMove!)) &&
         (state.Backdrops == null || ExactPatches(state.Backdrops.Helper, prefix: nameof(BeforeBackdrops)) && ExactPatches(state.Backdrops.MovieConvert, postfix: nameof(AfterBackdrop)) &&
-            (state.Backdrops.SeriesConvert == null || ExactPatches(state.Backdrops.SeriesConvert, postfix: nameof(AfterBackdrop))));
+            (state.Backdrops.SeriesConvert == null || ExactPatches(state.Backdrops.SeriesConvert, postfix: nameof(AfterBackdrop))) &&
+            (state.Backdrops.BoxSetConvert == null || ExactPatches(state.Backdrops.BoxSetConvert, postfix: nameof(AfterBackdrop))));
     private static bool Unpatched(MethodInfo method)
     {
         var p = Harmony.GetPatchInfo(method);
@@ -330,7 +333,7 @@ public static class NativePosterOrdering
             var child = kind is Kind.Season or Kind.Episode;
             var seriesId = child ? __0.SeriesId : 0; var parentId = child ? __0.ParentId : 0;
             if (child && seriesId < 0) return; // Keep native entry preference semantics, including its potentially unbounded ancestor walk.
-            var query = new Query { Generation = state.Generation, AllowBackdropExpansion = __2.ImageType is null or ImageType.Backdrop, Kind = kind.Value, Item = __0, Library = __1, ItemId = __0.InternalId, ItemGuid = __0.Id, ItemType = __0.GetType(), RawTmdbId = __0.GetProviderId(MetadataProviders.Tmdb), RawTvdbId = __0.GetProviderId(MetadataProviders.Tvdb), TmdbId = id, TvdbId = tvdbId, SeriesId = seriesId, ParentId = parentId, Preferred = __0.GetPreferredImageLanguage(__1) ?? "" };
+            var query = new Query { Generation = state.Generation, AllowBackdropExpansion = __2.ImageType is null or ImageType.Backdrop, Kind = kind.Value, Item = __0, Library = __1, ItemId = __0.InternalId, ItemGuid = __0.Id, ItemType = __0.GetType(), RawTmdbId = __0.GetProviderId(MetadataProviders.Tmdb), RawTvdbId = __0.GetProviderId(MetadataProviders.Tvdb), TmdbId = id, TvdbId = tvdbId, SeriesId = seriesId, ParentId = parentId };
             if (SameItem(query, __0) && TmdbId(__0) == id && TvdbId(__0) == tvdbId) __state.Scope = Current.Value = query;
         }
         catch (Exception) { /* Identity observation never changes native query control flow. */ }
@@ -358,8 +361,15 @@ public static class NativePosterOrdering
         var query = Current.Value;
         if (state.Backdrops == null || query == null || query.Closed || !query.AllowBackdropExpansion || query.Generation != state.Generation || query.TmdbId <= 0 || !QueryIdentity(query)) return null;
         var operation = query.Kind == Kind.Movie && query.MovieOperations == 1 && ReferenceEquals(provider, state.MovieProvider) ? CurrentMovie.Value :
-            query.Kind == Kind.Series && query.SeriesOperations == 1 && ReferenceEquals(provider, state.SeriesProvider) ? CurrentSeries.Value : null;
+            query.Kind == Kind.Series && query.SeriesOperations == 1 && ReferenceEquals(provider, state.SeriesProvider) ? CurrentSeries.Value :
+            // BoxSet: one query-owned operation for the single verified native BoxSet provider (original GetBackdrops prefix covers every caller).
+            query.Kind == Kind.BoxSet && state.Backdrops.BoxSetProvider != null && ReferenceEquals(provider, state.Backdrops.BoxSetProvider) ? BoxSetOperation(query) : null;
         return operation is { Closed: false } && ReferenceEquals(operation.Query, query) ? operation : null;
+    }
+    private static TmdbOperation BoxSetOperation(Query query)
+    {
+        var created = new TmdbOperation { Query = query };
+        return Interlocked.CompareExchange(ref query.BoxSetOperation, created, null) ?? created;
     }
     private static bool BeforeBackdrops(object __instance, object? __0, ref object __result)
     {
@@ -390,7 +400,8 @@ public static class NativePosterOrdering
         {
             var state = ReadState(); var binding = state?.Backdrops;
             if (binding == null || __result == null || __result.Type != ImageType.Backdrop || __result.ProviderName != "TheMovieDb" || __result.Language != null) return;
-            var owner = __originalMethod == binding.MovieConvert ? binding.MovieOwner : __originalMethod == binding.SeriesConvert ? binding.SeriesOwner : null;
+            var owner = __originalMethod == binding.MovieConvert ? binding.MovieOwner : __originalMethod == binding.SeriesConvert ? binding.SeriesOwner :
+                binding.BoxSetConvert != null && __originalMethod == binding.BoxSetConvert ? binding.BoxSetOwner : null;
             if (owner == null || __instance.GetType() != owner.DeclaringType) return;
             var provider = owner.GetValue(__instance); var operation = provider == null ? null : BackdropOperation(state!, provider);
             if (operation?.Backdrops?.Contains(__0) != true || operation.BackdropCalls != 1) return;
@@ -651,9 +662,10 @@ public static class NativePosterOrdering
                 if (parent != null && !parent.Matches() || !AncestorPathMatches() || !MembersMatch() || !ReferenceEquals(ReadState(), state) || !QueryIdentity(scope)) return images;
             }
             catch (Exception) { return images; }
-            return OrderSlots(images, language, scope.Preferred, scope.Kind == Kind.Episode);
+            // Original continuation reads the raw library PreferredImageLanguage after the await (no item/ancestor fallback).
+            return OrderSlots(images, language, scope.Library?.PreferredImageLanguage ?? "", scope.Kind == Kind.Episode);
         }
-        finally { scope.Closed = true; scope.Language = scope.TvdbLanguage = ""; if (scope.MovieOperation is { } operation) { operation.Closed = true; operation.Language = ""; operation.Backdrops = null; scope.MovieOperation = null; } }
+        finally { scope.Closed = true; scope.Language = scope.TvdbLanguage = ""; if (scope.BoxSetOperation is { } boxSet) { boxSet.Closed = true; boxSet.Backdrops = null; } if (scope.MovieOperation is { } operation) { operation.Closed = true; operation.Language = ""; operation.Backdrops = null; scope.MovieOperation = null; } }
     }
     internal static IEnumerable<RemoteImageInfo> OrderSlots(IEnumerable<RemoteImageInfo> images, string original, string preferred, bool episode = false)
     {
@@ -756,13 +768,23 @@ public static class NativePosterOrdering
             if (bytes == null) return response;
             using var json = JsonDocument.Parse(bytes, new JsonDocumentOptions { MaxDepth = 64 });
             var root = json.RootElement;
-            if (root.ValueKind != JsonValueKind.Object || root.EnumerateObject().Count(p => p.NameEquals("id")) != 1 || root.EnumerateObject().Count(p => p.NameEquals("original_language")) != 1 ||
-                !root.GetProperty("id").TryGetInt32(out var id) || id != scope.TmdbId || root.GetProperty("original_language").ValueKind != JsonValueKind.String) return response;
-            var language = SeriesLanguage(root.GetProperty("original_language").GetString());
+            if (root.ValueKind != JsonValueKind.Object || root.EnumerateObject().Count(p => p.NameEquals("id")) != 1 ||
+                !root.GetProperty("id").TryGetInt32(out var id) || id != scope.TmdbId) return response;
+            // Original Series postfix records SeriesRootObject.languages?.FirstOrDefault(), not original_language.
+            var language = SeriesLanguage(FirstSeriesLanguage(root));
             if (language.Length != 0 && !scope.Closed && !operation.Closed && operation.DetailRequests <= 1 && scope.SeriesOperations == 1 && ReferenceEquals(ReadState(), state)) operation.Language = operation.RawLanguage = language;
         }
         catch (Exception) { /* Observation failure changes neither the response nor its original stream cursor. */ }
         return response;
+    }
+    /// <summary>First element of a TMDB Series "languages" array (exactly one property, array, string first element), else null.</summary>
+    internal static string? FirstSeriesLanguage(JsonElement root)
+    {
+        if (root.ValueKind != JsonValueKind.Object || root.EnumerateObject().Count(p => p.NameEquals("languages")) != 1) return null;
+        var languages = root.GetProperty("languages");
+        if (languages.ValueKind != JsonValueKind.Array || languages.GetArrayLength() == 0) return null;
+        var first = languages[0];
+        return first.ValueKind == JsonValueKind.String ? first.GetString() : null;
     }
     private static byte[]? BufferedBytes(Stream stream, Type? offsetType)
     {
@@ -806,7 +828,7 @@ public static class NativePosterOrdering
         }
         catch (Exception) { return null; } // Optional native cache-stream support never disables the Movie/MemoryStream paths.
     }
-    private static BackdropBinding? BindBackdrops(MethodInfo movie, bool series)
+    private static BackdropBinding? BindBackdrops(MethodInfo movie, bool series, IImageProvider? boxSet = null)
     {
         try
         {
@@ -819,7 +841,7 @@ public static class NativePosterOrdering
             var movieOwner = module.ResolveField(0x04000112)!; var seriesOwner = series ? module.ResolveField(0x040002D6)! : null;
             var image = iso.DeclaringType!;
             bool Field(FieldInfo f, Type owner, string name, Type type) => f.DeclaringType == owner && f.Name == name && f.FieldType == type && !f.IsStatic;
-            bool Converter(MethodInfo method, FieldInfo owner, Type provider) => method.DeclaringType?.FullName == provider.FullName + "+<>c__DisplayClass3_0" &&
+            bool Converter(MethodInfo method, FieldInfo owner, Type provider, string closure = "+<>c__DisplayClass3_0") => method.DeclaringType?.FullName == provider.FullName + closure &&
                 method.Name == "<GetImages>b__3" && !method.IsStatic && method.ReturnType == typeof(RemoteImageInfo) && method.GetParameters().Select(p => p.ParameterType).SequenceEqual(new[] { image }) &&
                 method.GetMethodBody()!.ExceptionHandlingClauses.Count == 0 && Field(owner, method.DeclaringType, "<>4__this", provider);
             if (helper.DeclaringType?.FullName != "MovieDb.MovieDbProviderBase" || helper.Name != "GetBackdrops" || helper.IsStatic || !helper.IsFamily || helper.IsVirtual ||
@@ -830,7 +852,21 @@ public static class NativePosterOrdering
                 !Converter(movieConvert, movieOwner, movie.DeclaringType!) || series && !Converter(seriesConvert!, seriesOwner!, module.Assembly.GetType("MovieDb.MovieDbSeriesImageProvider")!) ||
                 !Methods(module.Assembly, new[] { (0x06000120, "D344EA27365C96122C0BC33B0E0C7DDE502D8AB2F4186E432E43956B4FE9FB9D"), (0x060001DF, "399AC2EA8561D2B7B93016E43FF9691B3EC82B2C73D6951C37FBA6AF704F4D2E") }) ||
                 series && Fingerprint(seriesConvert!) != "457DEF8D5146117F7CA6D9381C7AC8579784D75D35B86430061A931125BBDA39") return null;
-            return new BackdropBinding(helper, movieConvert, seriesConvert, list, file, iso, average, votes, movieOwner, seriesOwner);
+            // BoxSet is optional: a missing/unverified BoxSet provider never revokes the verified Movie/Series backdrop binding.
+            MethodInfo? boxConvert = null; FieldInfo? boxOwner = null;
+            try
+            {
+                var boxType = boxSet?.GetType();
+                if (boxType != null && boxType.FullName == "MovieDb.MovieDbBoxSetImageProvider" && boxType.Module == module)
+                {
+                    var convert = (MethodInfo)module.ResolveMethod(0x060001A1)!; var owner = module.ResolveField(0x0400009E)!;
+                    if (Converter(convert, owner, boxType, "+<>c__DisplayClass5_0") &&
+                        Methods(module.Assembly, new[] { (0x060000BD, "DD71F827010A58A35B17F64895926206034010D13FF2A7B218689A5A8EA9EA3D"), (0x060001A1, "98D29B3BA40A181D590365C9DDE2283F415317493BC93D1FB97F8898BB206CFD") }))
+                    { boxConvert = convert; boxOwner = owner; }
+                }
+            }
+            catch (Exception) { boxConvert = null; boxOwner = null; }
+            return new BackdropBinding(helper, movieConvert, seriesConvert, list, file, iso, average, votes, movieOwner, seriesOwner, boxConvert, boxOwner, boxConvert == null ? null : boxSet);
         }
         catch (Exception) { return null; }
     }
