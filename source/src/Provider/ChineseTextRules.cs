@@ -99,6 +99,23 @@ public static class ChineseTextRules
         string.Equals(genre, "War & Politics", StringComparison.OrdinalIgnoreCase) ? "战争政治" : genre;
 
     /// <summary>
+    /// M174: series alternative title (EnsureSeriesInfo postfix, A:53162-53472), for a TMDB series request in <paramref name="language"/>.
+    /// Needed when the name has no Han — or, with ja-JP selected and languages[0] empty or "ja", neither Han nor kana. The first
+    /// alternative_titles entry (TMDB order, any type) with a non-empty country and title, whose country equals the part after the
+    /// first '-' of the language (case-insensitive), is returned unconverted; no region or no match returns null.
+    /// </summary>
+    public static string? AlternativeTitle(string? name, string? language, string? firstLanguage, bool japaneseFallback, IEnumerable<(string? Country, string? Title)> titles)
+    {
+        if (string.IsNullOrEmpty(language)) return null;
+        var region = language.Contains('-') ? language.Split('-')[1] : null;
+        var needed = JapanesePath(japaneseFallback, firstLanguage) ? !HanOrKana(name) : !Han(name);
+        if (!needed) return null;
+        foreach (var (country, title) in titles)
+            if (!string.IsNullOrEmpty(country) && !string.IsNullOrEmpty(title) && string.Equals(country, region, StringComparison.OrdinalIgnoreCase)) return title;
+        return null;
+    }
+
+    /// <summary>
     /// Rebuild adaptation: the original reads TMDB original_language (movie) or languages[0] (series). The public item exposes only
     /// OriginalTitle, so a kana title means "ja", a Hangul title "ko", other Latin/script text a non-Japanese language, and an empty or
     /// Han-only title stays unknown (the original's empty-language path). For Han-only titles the two paths decide the same way.

@@ -442,6 +442,14 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
                 }
                 return Task.CompletedTask;
             });
+        // M174: original US/JP content-rating fallback files (same gate; the item's own Movie/Series rating only).
+        if (MetadataLanguageService != null && options.ChineseMovieDb && !string.Equals(options.MetadataBuildOptions.MetadataCacheMode, "None", StringComparison.OrdinalIgnoreCase) &&
+            item is MediaBrowser.Controller.Entities.Movies.Movie or MediaBrowser.Controller.Entities.TV.Series)
+            await Part("original-content-rating", async () =>
+            {
+                if (await MetadataLanguageService.ApplyContentRatingAsync(item, OriginalContentRatings, token).ConfigureAwait(false))
+                    Logger.Info("[StrmAssistantRebuild] Original content rating fallback applied to {0} {1}.", item.GetType().Name, item.InternalId);
+            });
         if (options.PinyinSortName && !item.IsFieldLocked(MediaBrowser.Model.Entities.MetadataFields.SortName))
         {
             var sort = PinyinUtility.GenerateSortName(item.Name, item is MediaBrowser.Controller.Entities.Audio.MusicArtist);
@@ -649,6 +657,13 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
         Logger.Info("[StrmAssistantRebuild] {0}", poster);
         PatchHealth.Record("NativeSeasonZeroPoster", Provider.NativeSeasonZeroPoster.Configure(host.ApplicationVersion, options.PreferOriginalPoster, out var seasonZero));
         Logger.Info("[StrmAssistantRebuild] {0}", seasonZero);
+        // M173: grouped season/episode images and TmdbEg edits follow MovieDbEpisodeGroup, as the original.
+        PatchHealth.Record("EpisodeGroupImages", Provider.EpisodeGroupImageControl.Configure(host.ApplicationVersion, host.Plugins, options.MovieDbEpisodeGroup,
+            () => MetadataStore.GetOptions(), () => EpisodeGroupService, Logger, out var groupImages));
+        Logger.Info("[StrmAssistantRebuild] {0}", groupImages);
+        PatchHealth.Record("EpisodeGroupEdit", Provider.EpisodeGroupEditControl.Configure(host.ApplicationVersion, options.MovieDbEpisodeGroup, libraries, providers,
+            () => EpisodeGroupService, Logger, out var groupEdit));
+        Logger.Info("[StrmAssistantRebuild] {0}", groupEdit);
         ConfigureItemsQueryExtensions();
     }
     private void ConfigureItemsQueryExtensions()
@@ -666,6 +681,11 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
     private readonly string embyCachePath;
     internal Provider.OriginalOverrideFiles OriginalOverrides => originalOverrides ??= new Provider.OriginalOverrideFiles(MetadataCacheRoot);
     internal long OriginalOverridesApplied => originalOverrides?.Applied ?? 0;
+    private Provider.OriginalContentRatings? originalContentRatings;
+    internal Provider.OriginalContentRatings OriginalContentRatings => originalContentRatings ??= new Provider.OriginalContentRatings(MetadataCacheRoot,
+        country => MediaBrowser.Controller.Entities.BaseItem.LocalizationManager?.GetParentalRatings(country)?.Select(r => r.Name) ?? Enumerable.Empty<string>());
+    internal string OriginalContentRatingCounters => originalContentRatings == null ? "mapped=0; filled=0; kept=0; unreadable files=0" :
+        "mapped=" + originalContentRatings.Mapped + "; filled=" + originalContentRatings.Filled + "; kept=" + originalContentRatings.Kept + "; unreadable files=" + originalContentRatings.Unreadable;
     private bool? lastDoubanChannel;
     /// <summary>
     /// M157 default file-change cleanup (original "Exclusive Delete on Change", A----------.cs:102844-102957): an item that
@@ -791,7 +811,7 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
         var experience = ExperienceStore.GetOptions();
         DashboardAssets?.Refresh(WebOptionsSnapshot.Enabled(media, metadata, intro, experience, SeasonCollectionQuery.IsDoubanFilterEnabled), WebOptionsSnapshot.Create(media, metadata, intro, experience, ConfigurationStore.GetOptions().ModOptions, SeasonCollectionQuery.IsDoubanFilterEnabled, IntroRefreshBridge.IsEnabled));
     }
-    public override void OnUninstalling() { StopEpisodeBatches(); IntroRefreshBridge.Disable(); dashboardLifetime.Cancel(); PlaySessionMonitor?.Dispose(); FavoriteNotifications?.Dispose(); CollectionNotifications?.Dispose(); NativeIntroUnlock.Disable(); MetadataEditNotification.Remove(); ImageEditNotification.Remove(); SubtitleSearchOptimization.Disable(); PersonDetailRefreshControl.Disable(); SeasonCollectionQuery.Disable(); Provider.NativeSeasonCastControl.Disable(); Provider.NativeMovieDbCache.Disable(); Provider.NativeMovieDbRouting.Disable(); Provider.NativePosterOrdering.Disable(); LocalDiscoveryControl.Disable(); NativeHttpRouting.Disable(); NativeChangedProbeControl.Disable(); ExclusiveRemoteFetcherControl.Disable(); ExclusiveChapterImageControl.Disable(); ExclusiveLibraryScanControl.Disable(); ExclusiveMediaControl.Disable(); ExclusiveSaverControl.Disable(); StrmThumbnailCompatibility.Disable(); DashboardAssets?.Restore(); base.OnUninstalling(); }
+    public override void OnUninstalling() { StopEpisodeBatches(); IntroRefreshBridge.Disable(); dashboardLifetime.Cancel(); PlaySessionMonitor?.Dispose(); FavoriteNotifications?.Dispose(); CollectionNotifications?.Dispose(); NativeIntroUnlock.Disable(); MetadataEditNotification.Remove(); ImageEditNotification.Remove(); SubtitleSearchOptimization.Disable(); PersonDetailRefreshControl.Disable(); SeasonCollectionQuery.Disable(); Provider.NativeSeasonCastControl.Disable(); Provider.NativeMovieDbCache.Disable(); Provider.NativeMovieDbRouting.Disable(); Provider.NativePosterOrdering.Disable(); Provider.EpisodeGroupImageControl.Disable(); Provider.EpisodeGroupEditControl.Disable(); LocalDiscoveryControl.Disable(); NativeHttpRouting.Disable(); NativeChangedProbeControl.Disable(); ExclusiveRemoteFetcherControl.Disable(); ExclusiveChapterImageControl.Disable(); ExclusiveLibraryScanControl.Disable(); ExclusiveMediaControl.Disable(); ExclusiveSaverControl.Disable(); StrmThumbnailCompatibility.Disable(); DashboardAssets?.Restore(); base.OnUninstalling(); }
     private void StopEpisodeBatches()
     {
         TaskCompletionSource<bool>? completion=null;Task cleanup;
@@ -862,6 +882,8 @@ public sealed class Plugin : BasePlugin, IHasThumbImage, IHasUIPages, IServerEnt
         Provider.NativePosterOrdering.Disable();
         Provider.NativeSeasonZeroPoster.Disable();
         Provider.MissingEpisodeGroupControl.Disable();
+        Provider.EpisodeGroupImageControl.Disable();
+        Provider.EpisodeGroupEditControl.Disable();
         LibraryScopePlayProgressControl.Disable();
         DeepDeleteControl.Disable();
         ExclusiveFileChange.Configure(null);

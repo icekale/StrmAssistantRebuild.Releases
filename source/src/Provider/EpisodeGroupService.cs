@@ -195,34 +195,54 @@ public sealed class EpisodeGroupService
     internal static string? GroupLanguage(string? language) =>
         language is { Length: >= 2 and <= 16 } && language.All(c => AsciiAlphanumeric(c) || c == '-') ? language : null;
 
+    /// <summary>M173: the original's series sidecar name (A:117312), written back from an online or override group.</summary>
+    public const string SidecarName = "episodegroup.json";
+    /// <summary>Read-only alternative name accepted by rebuild releases before M173; never written or deleted.</summary>
+    public const string LegacySidecarName = "episode-group.json";
+    public static long SidecarWrites => Interlocked.Read(ref sidecarWrites);
+    private static long sidecarWrites;
+    public static long SidecarReadFailures => Interlocked.Read(ref sidecarReadFailures);
+    private static long sidecarReadFailures;
+    /// <summary>The series sidecar path when LocalEpisodeGroup is on (the original passes a null path otherwise: nothing read or written).</summary>
+    internal static string? SidecarPath(string? seriesPath, MetadataEnhanceOptions settings) =>
+        settings.LocalEpisodeGroup && !string.IsNullOrWhiteSpace(seriesPath) && Path.IsPathRooted(seriesPath) ? Path.Combine(seriesPath, SidecarName) : null;
+
     public async Task<EpisodeGroupDocument?> LoadAsync(string? seriesPath, string? reference, CancellationToken token, string? seriesTmdbId = null, string? language = null)
     {
         language = GroupLanguage(language);
         token.ThrowIfCancellationRequested();
         var settings = options();
+        var sidecarPath = SidecarPath(seriesPath, settings);
         if (OriginalOverridePath(seriesTmdbId) is { } overridePath && File.Exists(overridePath))
         {
             try
             {
                 await using var stream = File.OpenRead(paths.RequireWritablePath(overridePath));
-                var document = Parse(await MetadataLanguageService.ReadBoundedAsync(stream, 4 * 1024 * 1024, token).ConfigureAwait(false));
+                var raw = await MetadataLanguageService.ReadBoundedAsync(stream, 4 * 1024 * 1024, token).ConfigureAwait(false);
+                var document = Parse(raw);
                 document.Local = true;
                 Interlocked.Increment(ref originalOverrideReads);
+                // M173: an override read from disk is copied into the series sidecar (A:104535, 104421).
+                WriteSidecar(sidecarPath, raw, document);
                 return document;
             }
             catch (Exception ex) when (ex is JsonException or InvalidDataException or IOException) { logger.Debug("Original episodegroup.json override ignored: {0}", ex.GetType().Name); }
         }
-        if (settings.LocalEpisodeGroup && !string.IsNullOrWhiteSpace(seriesPath) && Path.IsPathRooted(seriesPath))
+        if (sidecarPath != null)
         {
-            // Read-only media sidecar; remote cache is never written here.
-            foreach (var name in new[] { "episodegroup.json", "episode-group.json" })
+            foreach (var sidecar in new[] { sidecarPath, Path.Combine(seriesPath!, LegacySidecarName) })
             {
-                var sidecar = Path.Combine(seriesPath, name);
                 if (!File.Exists(sidecar)) continue;
-                await using var stream = File.OpenRead(sidecar);
-                var local = Parse(await MetadataLanguageService.ReadBoundedAsync(stream, 4 * 1024 * 1024, token).ConfigureAwait(false));
-                local.Local = true;
-                return local;
+                // M173: as the original (A:104696-105020), an unreadable sidecar counts as absent; the online group then rewrites it.
+                try
+                {
+                    await using var stream = File.OpenRead(sidecar);
+                    var local = Parse(await MetadataLanguageService.ReadBoundedAsync(stream, 4 * 1024 * 1024, token).ConfigureAwait(false));
+                    local.Local = true;
+                    return local;
+                }
+                catch (Exception ex) when (ex is JsonException or InvalidDataException or IOException or UnauthorizedAccessException)
+                { Interlocked.Increment(ref sidecarReadFailures); logger.Debug("Local episode group ignored: {0}", ex.GetType().Name); }
             }
         }
         if (string.IsNullOrWhiteSpace(reference)) return null;
@@ -236,7 +256,8 @@ public sealed class EpisodeGroupService
         var query = language == null ? null : "language=" + Uri.EscapeDataString(language);
         var identity = external ? reference : "tmdb-v2:" + MetadataLanguageService.TmdbEndpoint(settings, relative).AbsoluteUri + (query == null ? "" : "?" + query);
         var cacheKey = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(identity)));
-        var cache = paths.RequireWritablePath(Path.Combine(cacheRoot, "episode-groups", cacheKey + ".json"));
+        // M173: one folder per group reference, so editing TmdbEg can drop every language of the old group.
+        var cache = paths.RequireWritablePath(Path.Combine(CacheFolder(reference), cacheKey + ".json"));
         var cacheTime = File.Exists(cache) ? File.GetLastWriteTimeUtc(cache) : DateTime.MinValue;
         var now = DateTime.UtcNow;
         if (cacheTime <= now.AddMinutes(5) && now - cacheTime < TimeSpan.FromHours(6))
@@ -244,8 +265,10 @@ public sealed class EpisodeGroupService
             try
             {
                 await using var stream = File.OpenRead(cache);
-                var cached = Parse(await MetadataLanguageService.ReadBoundedAsync(stream, 4 * 1024 * 1024, token).ConfigureAwait(false));
+                var raw = await MetadataLanguageService.ReadBoundedAsync(stream, 4 * 1024 * 1024, token).ConfigureAwait(false);
+                var cached = Parse(raw);
                 RequireIdentity(cached, reference, external);
+                WriteSidecar(sidecarPath, raw, cached);
                 return cached;
             }
             catch (Exception ex) when (ex is JsonException or InvalidDataException or IOException) { logger.Debug("Episode group cache discarded: {0}", ex.GetType().Name); }
@@ -266,7 +289,98 @@ public sealed class EpisodeGroupService
         var temp = paths.RequireWritablePath(cache + "." + Guid.NewGuid().ToString("N") + ".tmp");
         try { await File.WriteAllBytesAsync(temp, bytes, token).ConfigureAwait(false); token.ThrowIfCancellationRequested(); File.Move(temp, cache, true); }
         finally { try { if (File.Exists(temp)) File.Delete(paths.RequireWritablePath(temp)); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { logger.Warn("Episode group temporary cleanup skipped: {0}", ex.GetType().Name); } }
+        // M173: an online group is written back to the series sidecar (A:104363-104433).
+        WriteSidecar(sidecarPath, bytes, parsed);
         return parsed;
+    }
+
+    string CacheFolder(string reference) => Path.Combine(cacheRoot, "episode-groups",
+        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes("reference:" + reference)))[..32]);
+
+    /// <summary>M173: drop every cached language of a group reference (the original invalidates the old group on a TmdbEg edit, A:63103).</summary>
+    public bool ClearCache(string? reference)
+    {
+        if (string.IsNullOrWhiteSpace(reference)) return false;
+        try
+        {
+            var folder = paths.RequireWritablePath(CacheFolder(reference.Trim()));
+            if (!Directory.Exists(folder)) return false;
+            Directory.Delete(folder, true);
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        { logger.Debug("Episode group cache not cleared: {0}", ex.GetType().Name); return false; }
+    }
+
+    /// <summary>
+    /// M173: the original's compact sidecar (StrmAssistant.Dto.MovieDb.Compact*): id, description, groups[air_date, name, overview,
+    /// order, episodes[episode_number, season_number, order]]; episode ids, names, overviews and dates are dropped. Nulls are omitted.
+    /// </summary>
+    internal static byte[] Compact(ReadOnlyMemory<byte> source, EpisodeGroupDocument document)
+    {
+        string? description = null;
+        using (var json = JsonDocument.Parse(source, new JsonDocumentOptions { MaxDepth = 32 }))
+            if (Property(json.RootElement, "description", out var d) && d.ValueKind == JsonValueKind.String) description = d.GetString();
+        using var buffer = new MemoryStream();
+        using (var writer = new Utf8JsonWriter(buffer, new JsonWriterOptions { Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }))
+        {
+            writer.WriteStartObject();
+            if (document.Id != null) writer.WriteString("id", document.Id);
+            if (description != null) writer.WriteString("description", description);
+            writer.WriteStartArray("groups");
+            foreach (var group in document.Groups)
+            {
+                writer.WriteStartObject();
+                if (group.AirDate is { } date)
+                    writer.WriteString("air_date", date.Offset == TimeSpan.Zero && date.TimeOfDay == TimeSpan.Zero
+                        ? date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : date.ToString("O", CultureInfo.InvariantCulture));
+                if (group.Name != null) writer.WriteString("name", group.Name);
+                if (group.Overview != null) writer.WriteString("overview", group.Overview);
+                writer.WriteNumber("order", group.Order);
+                writer.WriteStartArray("episodes");
+                foreach (var episode in document.Episodes.Where(e => e.GroupSeason == group.Order))
+                {
+                    writer.WriteStartObject();
+                    writer.WriteNumber("episode_number", episode.AiredEpisode);
+                    writer.WriteNumber("season_number", episode.AiredSeason);
+                    writer.WriteNumber("order", episode.GroupEpisode - 1);
+                    writer.WriteEndObject();
+                }
+                writer.WriteEndArray();
+                writer.WriteEndObject();
+            }
+            writer.WriteEndArray();
+            writer.WriteEndObject();
+        }
+        return buffer.ToArray();
+    }
+
+    /// <summary>
+    /// M173: write the compact group into the series folder. The original truncates and rewrites the file (no lock or option check
+    /// beyond LocalEpisodeGroup) and logs failures; the rebuild writes through a temporary file, skips identical content and never
+    /// writes through a symbolic link.
+    /// </summary>
+    void WriteSidecar(string? path, ReadOnlyMemory<byte> source, EpisodeGroupDocument document)
+    {
+        if (path == null) return;
+        string? temp = null;
+        try
+        {
+            var folder = Path.GetDirectoryName(path);
+            if (folder == null || !Directory.Exists(folder) || new DirectoryInfo(folder).LinkTarget != null) return;
+            var info = new FileInfo(path);
+            if (info.Exists && info.LinkTarget != null) return;
+            var bytes = Compact(source, document);
+            if (info.Exists && info.Length == bytes.Length && File.ReadAllBytes(path).AsSpan().SequenceEqual(bytes)) return;
+            temp = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            File.WriteAllBytes(temp, bytes);
+            File.Move(temp, path, true);
+            temp = null;
+            Interlocked.Increment(ref sidecarWrites);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or ArgumentException or NotSupportedException)
+        { logger.Warn("[StrmAssistantRebuild] EpisodeGroupInfo: sidecar not written ({0})", ex.GetType().Name); }
+        finally { try { if (temp != null && File.Exists(temp)) File.Delete(temp); } catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { } }
     }
 
     private static void RequireIdentity(EpisodeGroupDocument document, string reference, bool external)

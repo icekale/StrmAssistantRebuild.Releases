@@ -73,6 +73,50 @@ public sealed class MetadataLanguageService
         return changed;
     }
 
+    /// <summary>M174: native TMDB detail reader (series alternative titles, US/JP ratings); replaceable by component tests.</summary>
+    internal Func<object?, string, string?, string?, CancellationToken, Task<JsonElement?>> TmdbDetails { get; set; } = NativeTmdbDetails.FetchAsync;
+    private static long alternativeTitles, ratingFailures;
+    /// <summary>Series alternative titles offered to the name rule (A:53162-53472).</summary>
+    public static long AlternativeTitlesFound => Interlocked.Read(ref alternativeTitles);
+    public static long RatingDetailFailures => Interlocked.Read(ref ratingFailures);
+
+    /// <summary>
+    /// M174: the original US/JP content-rating fallback for a Movie or Series (see <see cref="OriginalContentRatings"/>), applied
+    /// after the host refresh. Runs only when the preferred country (lookup MetadataCountryCode) has a fallback file, TMDB is an
+    /// enabled provider and the item has a TMDB id; the native detail for the main language is read again (normally a native cache
+    /// hit). A failed read changes nothing. Returns true when OfficialRating changed and was saved.
+    /// </summary>
+    public async Task<bool> ApplyContentRatingAsync(BaseItem item, OriginalContentRatings ratings, CancellationToken token)
+    {
+        token.ThrowIfCancellationRequested();
+        if (item is not (Movie or Series) || item.IsLocked || item.IsFieldLocked(MetadataFields.OfficialRating)) return false;
+        var movie = item is Movie;
+        var libraryOptions = library.GetLibraryOptions(item);
+        ItemLookupInfo lookup = item is Movie m ? m.GetLookupInfo(libraryOptions) : ((Series)item).GetLookupInfo(libraryOptions);
+        var country = lookup.MetadataCountryCode?.ToUpperInvariant();
+        var tmdbId = item.GetProviderId(MetadataProviders.Tmdb);
+        if (country == null || string.IsNullOrEmpty(tmdbId) || ratings.Map(movie, country) is not { } map) return false;
+        // The detail provider itself (MovieDbProvider / MovieDbSeriesProvider), not another enabled TheMovieDb provider such as images.
+        var provider = providers.GetEnabledMetadataProviders(item, libraryOptions)
+            .Where(p => movie ? p is IRemoteMetadataProvider<Movie, MovieInfo> : p is IRemoteMetadataProvider<Series, SeriesInfo>).FirstOrDefault(p => ProviderKind(p.Name) == "tmdb");
+        if (provider == null) return false;
+        JsonElement? details;
+        try { details = await (TmdbDetails ?? NativeTmdbDetails.FetchAsync)(provider, movie ? "movie" : "series", tmdbId, lookup.MetadataLanguage, token).ConfigureAwait(false); }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+        catch (Exception ex) { Interlocked.Increment(ref ratingFailures); logger.Warn("Content rating fallback skipped for {0}: {1}", item.InternalId, ex.GetType().Name); return false; }
+        token.ThrowIfCancellationRequested();
+        if (details is not { } dto || item.IsLocked) return false;
+        var official = item.OfficialRating?.Trim();
+        var final = OriginalContentRatings.Decide(official, movie, country, NativeTmdbDetails.Ratings(dto, movie), map, ratings.Known(country), out var outcome);
+        ratings.Count(outcome);
+        if (string.Equals(final, item.OfficialRating, StringComparison.Ordinal)) return false;
+        var previous = item.OfficialRating;
+        item.OfficialRating = final;
+        try { Persist(library, item, token); }
+        catch { item.OfficialRating = previous; throw; }
+        return true;
+    }
+
     bool TmdbEnabled(BaseItem item) =>
         providers.GetEnabledMetadataProviders(item, library.GetLibraryOptions(item)).Any(p => ProviderKind(p.Name) == "tmdb");
 
@@ -163,9 +207,31 @@ public sealed class MetadataLanguageService
         var taglines = chinese && main && !settings.ClearTagline;
         string Convert(string text, string? fetched) => chinese ? ChineseTextRules.Convert(text, fetched, target, settings.PreferTraditionalChinese) : text;
         var state = new TextState();
+        // M174: series alternative titles (EnsureSeriesInfo postfix, A:53162-53472). The native detail is read once, only when a
+        // name without Han needs one; alternative_titles and languages are the same in every language's response.
+        var alternatives = chinese && item is Series;
+        JsonElement? details = null;
+        var detailsRead = false;
+        async Task<string?> Alternative(string? name, string? language)
+        {
+            if (!alternatives || ChineseTextRules.Han(name) || string.IsNullOrEmpty(language) || !language.Contains('-')) return null;
+            if (!detailsRead)
+            {
+                detailsRead = true;
+                try { details = await (TmdbDetails ?? NativeTmdbDetails.FetchAsync)(provider, "series", item.GetProviderId(MetadataProviders.Tmdb), target, token).ConfigureAwait(false); }
+                catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+                catch (Exception ex) { logger.Warn("Series alternative titles skipped for {0}: {1}", item.InternalId, ex.GetType().Name); }
+            }
+            if (details is not { } dto) return null;
+            var title = ChineseTextRules.AlternativeTitle(name, language, NativeTmdbDetails.FirstLanguage(dto), ja, NativeTmdbDetails.AlternativeTitles(dto));
+            if (title != null) Interlocked.Increment(ref alternativeTitles);
+            return title;
+        }
         if (!grouped)
         {
             state.Name = item.Name; state.Overview = item.Overview; state.Tagline = taglines ? item.Tagline : null;
+            // Rebuild adaptation: the host's main-language name stands for the first native response.
+            if (await Alternative(state.Name, target).ConfigureAwait(false) is { } mainAlternative) state.Name = mainAlternative;
             if (normalize && !string.IsNullOrEmpty(state.Overview)) state.Overview = ChineseTextRules.NormalizeOverview(state.Overview);
             if (chinese && LanguageFamily(target) == "zh")
             {
@@ -209,13 +275,14 @@ public sealed class MetadataLanguageService
                 if (language != null && !SameLanguage(string.IsNullOrWhiteSpace(response.ResultLanguage) ? language : response.ResultLanguage, language)) continue;
                 var fetched = language ?? lookup.MetadataLanguage;
                 var r = response.Item;
+                var name = language != null && await Alternative(r.Name, fetched).ConfigureAwait(false) is { } alternative ? alternative : r.Name;
                 var takeName = item switch
                 {
-                    Episode => ChineseTextRules.ReplaceEpisodeName(state.Name, r.Name, ja),
-                    Movie or Series => ChineseTextRules.ReplaceName(state.Name, r.Name, originalTitle, ruleLanguage, ja),
-                    _ => ChineseTextRules.ReplaceText(state.Name, r.Name, null, ja)
+                    Episode => ChineseTextRules.ReplaceEpisodeName(state.Name, name, ja),
+                    Movie or Series => ChineseTextRules.ReplaceName(state.Name, name, originalTitle, ruleLanguage, ja),
+                    _ => ChineseTextRules.ReplaceText(state.Name, name, null, ja)
                 };
-                if (takeName) state.Name = Convert(r.Name!, fetched);
+                if (takeName) state.Name = Convert(name!, fetched);
                 if (ChineseTextRules.ReplaceText(state.Overview, r.Overview, ruleLanguage, ja))
                     state.Overview = Convert(normalize ? ChineseTextRules.NormalizeOverview(r.Overview!) : r.Overview!, fetched);
                 if (taglines && ChineseTextRules.ReplaceText(state.Tagline, r.Tagline, ruleLanguage, ja)) state.Tagline = Convert(r.Tagline!, fetched);

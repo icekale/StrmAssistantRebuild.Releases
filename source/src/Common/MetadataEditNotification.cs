@@ -20,6 +20,8 @@ public static class MetadataEditNotification
 {
     public const string EventId = OriginalNotifications.Metadata; // M164: original event id
     private const string Owner = "StrmAssistantRebuild.MetadataEdit.4.10.2";
+    /// <summary>M173: the TmdbEg edit hook on the private UpdateItem (EpisodeGroupEditControl) coexists with this Post hook.</summary>
+    internal const string EpisodeGroupEditOwner = "StrmAssistantRebuild.EpisodeGroupEdit.4.10.2";
     private static readonly object Gate = new();
     private static Harmony? patcher;
     private static MethodInfo? installed;
@@ -95,7 +97,7 @@ public static class MetadataEditNotification
                 Remove();var selected=Parse(fields);
                 if(!enabled || selected.Length==0){Detail="Disabled; no selected supported metadata fields.";return true;}
                 var targets=FindTargets();
-                if(version!=new Version(4,10,2,0)||targets.Length!=2||targets.Any(m=>!Verify(m))||targets.Any(m=>Harmony.GetPatchInfo(m)?.Owners.Any()==true))
+                if(version!=new Version(4,10,2,0)||targets.Length!=2||targets.Any(m=>!Verify(m))||targets.Any(m=>Harmony.GetPatchInfo(m)?.Owners.Any(o=>o!=EpisodeGroupEditOwner)==true))
                 {Detail="Metadata edit entry fingerprint/ownership differs.";return false;}
                 installed=targets[0];(patcher??=new Harmony(Owner)).Patch(installed,prefix:new HarmonyMethod(typeof(MetadataEditNotification),nameof(Before)),postfix:new HarmonyMethod(typeof(MetadataEditNotification),nameof(After)));
                 Volatile.Write(ref current,new(selected,library,notifications,userManager));Detail="Native editor metadata notification: "+string.Join(", ",selected)+"; custom opt-in event; image/automatic refresh changes not tracked.";return true;
